@@ -19,3 +19,9 @@ debug.keystore
 .build-outputs/
 *.jks
 
+# Ensure wrapper and gradlew are always tracked
+!gradle/wrapper/gradle-wrapper.jar
+!gradlew
+!gradlew.bat
+
+

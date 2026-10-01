@@ -217,8 +217,8 @@ fun FloatingOverlayWindowContent(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .widthIn(min = 96.dp, max = 118.dp)
-                        .heightIn(max = 540.dp)
+                        .widthIn(min = 124.dp, max = 138.dp)
+                        .heightIn(max = 560.dp)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 6.dp, vertical = 6.dp)
                         .testTag("floating_edge_tabs_column")
@@ -235,7 +235,7 @@ fun FloatingOverlayWindowContent(
 
                     Spacer(modifier = Modifier.height(2.dp))
 
-                    // 1. PROXY TAB
+                    // 1. PROXY TAB (Original Rectangular Tactile Button)
                     GlossyTactileButton(
                         title = if (state.proxyState.isConnected) "Proxy ✓" else "Proxy",
                         icon = Icons.Default.Bolt,
@@ -248,7 +248,7 @@ fun FloatingOverlayWindowContent(
                         testTag = "tab_proxy"
                     )
 
-                    // 2. NAME GENERATOR TAB
+                    // 2. NAME GENERATOR TAB (Original Rectangular Tactile Button)
                     GlossyTactileButton(
                         title = "Name",
                         icon = Icons.Default.Person,
@@ -261,59 +261,87 @@ fun FloatingOverlayWindowContent(
                         testTag = "tab_name"
                     )
 
-                    // 3. EXCEL COLUMN A
+                    // 3. EXCEL COLUMNS IN 3-COLUMN CIRCULAR GRID ("gol boler moto")
+                    // Supports up to 6 columns: Row 1 has A, B, C; Row 2 has D, E, F
                     val rowA = state.columnRowMap["A"] ?: 1
-                    SheetCircularButton(
-                        title = "A$rowA",
-                        onClick = {
-                            OverlayStateManager.fastPasteToSheetColumn(context, "A")
-                        },
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                        testTag = "tab_col_a"
-                    )
-
-                    // 4. EXCEL COLUMN B
                     val rowB = state.columnRowMap["B"] ?: 1
-                    SheetCircularButton(
-                        title = "B$rowB",
-                        onClick = {
-                            OverlayStateManager.fastPasteToSheetColumn(context, "B")
-                        },
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                        testTag = "tab_col_b"
-                    )
+                    val rowC = state.columnRowMap["C"] ?: 1
+                    val rowD = state.columnRowMap["D"] ?: 1
+                    val rowE = state.columnRowMap["E"] ?: 1
+                    val rowF = state.columnRowMap["F"] ?: 1
 
-                    // 5. EXCEL COLUMN C (if 3+ columns)
-                    if (state.columnCount >= 3) {
-                        val rowC = state.columnRowMap["C"] ?: 1
+                    // Grid Row 1: Columns A, B, C
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         SheetCircularButton(
-                            title = "C$rowC",
+                            title = "A$rowA",
                             onClick = {
-                                OverlayStateManager.fastPasteToSheetColumn(context, "C")
+                                OverlayStateManager.fastPasteToSheetColumn(context, "A")
                             },
-                            modifier = Modifier.align(Alignment.CenterHorizontally),
-                            testTag = "tab_col_c"
+                            testTag = "tab_col_a"
                         )
+                        SheetCircularButton(
+                            title = "B$rowB",
+                            onClick = {
+                                OverlayStateManager.fastPasteToSheetColumn(context, "B")
+                            },
+                            testTag = "tab_col_b"
+                        )
+                        if (state.columnCount >= 3) {
+                            SheetCircularButton(
+                                title = "C$rowC",
+                                onClick = {
+                                    OverlayStateManager.fastPasteToSheetColumn(context, "C")
+                                },
+                                testTag = "tab_col_c"
+                            )
+                        }
                     }
 
-                    // 5b. EXCEL COLUMN D (if 4 columns)
+                    // Grid Row 2: Columns D, E, F (if 4+ columns selected)
                     if (state.columnCount >= 4) {
-                        val rowD = state.columnRowMap["D"] ?: 1
-                        SheetCircularButton(
-                            title = "D$rowD",
-                            onClick = {
-                                OverlayStateManager.fastPasteToSheetColumn(context, "D")
-                            },
-                            modifier = Modifier.align(Alignment.CenterHorizontally),
-                            testTag = "tab_col_d"
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SheetCircularButton(
+                                title = "D$rowD",
+                                onClick = {
+                                    OverlayStateManager.fastPasteToSheetColumn(context, "D")
+                                },
+                                testTag = "tab_col_d"
+                            )
+                            if (state.columnCount >= 5) {
+                                SheetCircularButton(
+                                    title = "E$rowE",
+                                    onClick = {
+                                        OverlayStateManager.fastPasteToSheetColumn(context, "E")
+                                    },
+                                    testTag = "tab_col_e"
+                                )
+                            }
+                            if (state.columnCount >= 6) {
+                                SheetCircularButton(
+                                    title = "F$rowF",
+                                    onClick = {
+                                        OverlayStateManager.fastPasteToSheetColumn(context, "F")
+                                    },
+                                    testTag = "tab_col_f"
+                                )
+                            }
+                        }
                     }
 
-                    // 6. 2FA TAB
+                    // 4. 2FA TAB (Displays '2FA' + code + timer cleanly on one line)
                     val totpFormatted = state.totpResult?.formattedCode
                     val totpSec = state.totpResult?.remainingSeconds
-                    val title2Fa = if (!totpFormatted.isNullOrEmpty() && totpSec != null) {
-                        "2FA $totpFormatted (${totpSec}s)"
+                    val is2FaActive = !totpFormatted.isNullOrEmpty() && totpSec != null
+                    val title2Fa = if (is2FaActive) {
+                        "2FA ${totpFormatted!!.replace(" ", "")} (${totpSec}s)"
                     } else {
                         "2FA"
                     }
@@ -322,6 +350,8 @@ fun FloatingOverlayWindowContent(
                         icon = Icons.Default.Lock,
                         brush = grad2Fa,
                         shape = tabShape,
+                        fontSize = if (is2FaActive) 9.2.sp else 12.sp,
+                        horizontalPadding = if (is2FaActive) 4.dp else 9.dp,
                         onClick = {
                             OverlayStateManager.triggerOverlay2FaPaste(context)
                         },
@@ -329,8 +359,7 @@ fun FloatingOverlayWindowContent(
                         testTag = "tab_2fa"
                     )
 
-                    // 7. CUSTOM USER APPS (Via, Dual, FB, Multiple Space)
-                    // If multiple apps (> 1), show in 2-column box! If 1 app, show single full-width button.
+                    // 5. CUSTOM USER APPS (Via, Dual, FB, Multiple Space)
                     if (state.customAppShortcuts.isNotEmpty()) {
                         if (state.customAppShortcuts.size > 1) {
                             AppShortcutsGridBox(
@@ -361,7 +390,6 @@ fun FloatingOverlayWindowContent(
                                     OverlayStateManager.launchAppShortcut(context, shortcut)
                                 },
                                 onLongClick = {
-                                    // Instant Zero-Touch Auto-Close on Hold!
                                     OverlayStateManager.closeAppShortcut(context, shortcut)
                                 },
                                 modifier = Modifier.fillMaxWidth(),
@@ -370,8 +398,7 @@ fun FloatingOverlayWindowContent(
                         }
                     }
 
-                    // 8. CLEAR DATA / CLEAN TAB
-                    // If multiple apps (> 1), show in 2-column box! If 1 app, show single full-width button.
+                    // 6. CLEAR DATA / CLEAN TAB (Original Rectangular Tactile Button)
                     if (state.selectedClearDataApps.isNotEmpty()) {
                         if (state.selectedClearDataApps.size > 1) {
                             ClearDataGridBox(
@@ -408,7 +435,7 @@ fun FloatingOverlayWindowContent(
                         )
                     }
 
-                    // 9 & 10. DOCK SIDE SWITCHER (⇄) & CLOSE BUTTON (✕) SIDE BY SIDE IN 2 COLUMNS
+                    // 7. DOCK SIDE SWITCHER (⇄) & CLOSE BUTTON (✕) SIDE BY SIDE IN 2 COLUMNS
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -462,6 +489,8 @@ fun GlossyTactileButton(
     onLongClick: (() -> Unit)? = null,
     icon: ImageVector? = null,
     iconLabel: String? = null,
+    fontSize: androidx.compose.ui.unit.TextUnit = 12.sp,
+    horizontalPadding: androidx.compose.ui.unit.Dp = 9.dp,
     modifier: Modifier = Modifier,
     testTag: String = ""
 ) {
@@ -486,7 +515,7 @@ fun GlossyTactileButton(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-            .padding(horizontal = 9.dp, vertical = 2.dp)
+            .padding(horizontal = horizontalPadding, vertical = 2.dp)
             .testTag(testTag)
     ) {
         // Specular Top Shine Overlay (Glass reflection)
@@ -516,7 +545,7 @@ fun GlossyTactileButton(
                     tint = Color.White,
                     modifier = Modifier.size(15.dp)
                 )
-                Spacer(modifier = Modifier.width(5.dp))
+                Spacer(modifier = Modifier.width(4.dp))
             } else if (iconLabel != null) {
                 Text(
                     text = iconLabel,
@@ -529,8 +558,8 @@ fun GlossyTactileButton(
                 text = title,
                 color = Color.White,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 12.sp,
-                letterSpacing = 0.2.sp,
+                fontSize = fontSize,
+                letterSpacing = if (fontSize < 12.sp) (-0.3).sp else 0.2.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
@@ -548,14 +577,8 @@ fun ProxyInfoStatusPill(state: OverlayUiState) {
     val proxy = state.proxyState
     if (!proxy.isConnected) return
 
-    val countryStr = when (proxy.countryCode.uppercase()) {
-        "BD" -> "🇧🇩 BD"
-        "US" -> "🇺🇸 US"
-        "GB" -> "🇬🇧 UK"
-        "CA" -> "🇨🇦 CA"
-        "IN" -> "🇮🇳 IN"
-        else -> proxy.countryCode.ifEmpty { "BD" }
-    }
+    val countryOpt = com.example.util.NameGenerator.getCountryOption(proxy.countryCode)
+    val countryStr = "${countryOpt.flag} ${countryOpt.code}"
     val timeStr = OverlayStateManager.formatDuration(proxy.connectedDurationSeconds)
     val ipStr = proxy.ipAddress.ifEmpty { proxy.host }
 
@@ -592,8 +615,12 @@ fun ProxyInfoStatusPill(state: OverlayUiState) {
 }
 
 /**
- * 3D Metallic Circular Button for A{row} and B{row} as seen in user screenshot!
- * Circular shape with silver metallic gradient, white border, and hot pink text.
+ * Ultra-Premium, Original Cosmic Obsidian & Jewel-Rimmed Circular Ball Button.
+ * Distinctive, luxurious multi-layered sphere:
+ * - Liquid Obsidian dark titanium spherical gradient core.
+ * - Dynamic jewel-tone neon glowing rim uniquely accented per column (A: Cyan, B: Gold, C: Amethyst, D: Emerald, E: Coral, F: Sapphire).
+ * - Specular curved crescent glass reflection at top.
+ * - Matching vivid glowing typography for column names & active row indices (A1, B1, C1...).
  */
 @Composable
 fun SheetCircularButton(
@@ -602,32 +629,234 @@ fun SheetCircularButton(
     modifier: Modifier = Modifier,
     testTag: String = ""
 ) {
+    // Dynamic luxury theme per column letter
+    val colKey = title.take(1).uppercase()
+    val (accentGlow, rimBorder, textColor) = when (colKey) {
+        "A" -> Triple(
+            Color(0xFF00E5FF),
+            Brush.sweepGradient(
+                listOf(
+                    Color(0xFF00E5FF),
+                    Color(0xFF80D8FF),
+                    Color(0xFF0091EA),
+                    Color(0xFF00E5FF)
+                )
+            ),
+            Color(0xFF00F0FF) // Electric Cyber Cyan
+        )
+        "B" -> Triple(
+            Color(0xFFFFD700),
+            Brush.sweepGradient(
+                listOf(
+                    Color(0xFFFFD700),
+                    Color(0xFFFFEA00),
+                    Color(0xFFFF8F00),
+                    Color(0xFFFFD700)
+                )
+            ),
+            Color(0xFFFFD700) // Pure Solar Gold
+        )
+        "C" -> Triple(
+            Color(0xFFE040FB),
+            Brush.sweepGradient(
+                listOf(
+                    Color(0xFFE040FB),
+                    Color(0xFFEA80FC),
+                    Color(0xFFAA00FF),
+                    Color(0xFFE040FB)
+                )
+            ),
+            Color(0xFFF06292) // Luminous Rose Amethyst
+        )
+        "D" -> Triple(
+            Color(0xFF00E676),
+            Brush.sweepGradient(
+                listOf(
+                    Color(0xFF00E676),
+                    Color(0xFFB9F6CA),
+                    Color(0xFF00C853),
+                    Color(0xFF00E676)
+                )
+            ),
+            Color(0xFF00E676) // Radiant Cyber Emerald
+        )
+        "E" -> Triple(
+            Color(0xFFFF5252),
+            Brush.sweepGradient(
+                listOf(
+                    Color(0xFFFF5252),
+                    Color(0xFFFF8A80),
+                    Color(0xFFD50000),
+                    Color(0xFFFF5252)
+                )
+            ),
+            Color(0xFFFF5252) // Vivid Sunset Coral
+        )
+        "F" -> Triple(
+            Color(0xFF448AFF),
+            Brush.sweepGradient(
+                listOf(
+                    Color(0xFF448AFF),
+                    Color(0xFF82B1FF),
+                    Color(0xFF2979FF),
+                    Color(0xFF448AFF)
+                )
+            ),
+            Color(0xFF448AFF) // Royal Azure Sapphire
+        )
+        else -> Triple(
+            Color(0xFF00E5FF),
+            Brush.linearGradient(listOf(Color(0xFF00E5FF), Color(0xFF7C4DFF))),
+            Color(0xFF00E5FF)
+        )
+    }
+
     Box(
         modifier = modifier
-            .size(46.dp)
-            .shadow(4.dp, CircleShape)
+            .size(38.dp)
+            .shadow(5.dp, CircleShape)
             .clip(CircleShape)
             .background(
                 Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFFF0F0F0),
-                        Color(0xFF9E9E9E),
-                        Color(0xFF424242)
+                        Color(0xFF263238),
+                        Color(0xFF19222D),
+                        Color(0xFF101720),
+                        Color(0xFF0A0F16)
                     )
                 )
             )
-            .border(1.5.dp, Color.White.copy(alpha = 0.95f), CircleShape)
+            .border(1.6.dp, rimBorder, CircleShape)
             .clickable(onClick = onClick)
             .testTag(testTag),
         contentAlignment = Alignment.Center
     ) {
+        // Specular top light reflex (Glass sphere reflection)
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(0.72f)
+                .height(11.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.45f), Color.Transparent)
+                    )
+                )
+        )
+
+        // Subtle ambient inner glow from column accent
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(accentGlow.copy(alpha = 0.12f))
+        )
+
         Text(
             text = title,
-            color = Color(0xFFFF007F), // Vibrant hot pink exactly as in screenshot
+            color = textColor,
             fontWeight = FontWeight.Black,
-            fontSize = 15.sp,
+            fontSize = 13.5.sp,
+            letterSpacing = (-0.3).sp,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+/**
+ * Ultra-Premium Utility Circular Button for Row 3 of the 3x3 Grid (2FA, Name, Clean).
+ * Matches the 38dp circular aesthetic with colored neon accents and specular glass sheen.
+ */
+@Composable
+fun UtilityCircularButton(
+    title: String,
+    accentColor: Color,
+    gradient: Brush,
+    onClick: () -> Unit,
+    icon: ImageVector? = null,
+    iconLabel: String? = null,
+    modifier: Modifier = Modifier,
+    testTag: String = ""
+) {
+    Box(
+        modifier = modifier
+            .size(38.dp)
+            .shadow(4.dp, CircleShape)
+            .clip(CircleShape)
+            .background(gradient)
+            .border(
+                1.5.dp,
+                Brush.linearGradient(
+                    listOf(
+                        accentColor.copy(alpha = 0.9f),
+                        Color.White.copy(alpha = 0.8f),
+                        accentColor.copy(alpha = 0.6f)
+                    )
+                ),
+                CircleShape
+            )
+            .clickable(onClick = onClick)
+            .testTag(testTag),
+        contentAlignment = Alignment.Center
+    ) {
+        // Specular top highlight
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(0.7f)
+                .height(11.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.4f), Color.Transparent)
+                    )
+                )
+        )
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(2.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(15.dp)
+                )
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 8.5.sp,
+                    lineHeight = 9.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2
+                )
+            } else if (iconLabel != null) {
+                Text(
+                    text = iconLabel,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 8.5.sp,
+                    textAlign = TextAlign.Center
+                )
+            } else {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 10.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
 

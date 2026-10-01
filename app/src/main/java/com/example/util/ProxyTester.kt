@@ -131,6 +131,30 @@ object ProxyTester {
             }
         }
 
+        // If country could not be resolved through the tunnel, resolve proxy server host IP country directly
+        if (resolvedCountry == "US" && cleanHost != "127.0.0.1" && cleanHost != "localhost") {
+            try {
+                val directCheckUrl = URL("http://ip-api.com/json/$cleanHost?fields=query,countryCode,status")
+                val directConn = directCheckUrl.openConnection() as HttpURLConnection
+                directConn.connectTimeout = 2000
+                directConn.readTimeout = 2000
+                directConn.requestMethod = "GET"
+                if (directConn.responseCode == 200) {
+                    val reader = BufferedReader(InputStreamReader(directConn.inputStream))
+                    val response = reader.readText()
+                    reader.close()
+                    val json = JSONObject(response)
+                    if (json.optString("status") == "success") {
+                        resolvedCountry = json.optString("countryCode", resolvedCountry)
+                        if (resolvedIp == cleanHost) {
+                            resolvedIp = json.optString("query", cleanHost)
+                        }
+                    }
+                }
+                directConn.disconnect()
+            } catch (_: Exception) {}
+        }
+
         val totalLatency = System.currentTimeMillis() - startTime
         val finalLatency = if (totalLatency > 0) totalLatency else socketLatency
 

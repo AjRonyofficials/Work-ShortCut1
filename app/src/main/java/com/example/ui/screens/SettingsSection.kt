@@ -68,8 +68,6 @@ import com.example.ui.theme.BrandTeal
 @Composable
 fun SettingsSection(
     state: OverlayUiState,
-    inAppBubbleVisible: Boolean,
-    onToggleInAppBubble: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -215,34 +213,6 @@ fun SettingsSection(
                             }
                         }
                     }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // In-App Preview Movable Bubble
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "In-App Draggable Bubble",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = "Shows movable bubble directly on screen inside app",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Switch(
-                        checked = inAppBubbleVisible,
-                        onCheckedChange = { onToggleInAppBubble(it) },
-                        modifier = Modifier.testTag("in_app_bubble_switch")
-                    )
                 }
             }
         }

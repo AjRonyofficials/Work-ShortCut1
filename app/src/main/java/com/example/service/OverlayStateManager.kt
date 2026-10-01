@@ -38,7 +38,7 @@ enum class AppThemeMode(val title: String) {
 }
 
 data class ExcelDraftRow(
-    val values: Map<String, String> = mapOf("A" to "", "B" to "", "C" to ""),
+    val values: Map<String, String> = mapOf("A" to "", "B" to "", "C" to "", "D" to "", "E" to "", "F" to ""),
     val duplicateColumn: String? = null,
     val duplicateConflictWith: String? = null,
     val duplicateValue: String? = null
@@ -75,8 +75,8 @@ data class OverlayUiState(
     val appTheme: AppThemeMode = AppThemeMode.DARK,
     val selectedCountry: String = "BD",
     val selectedGender: Gender = Gender.ANY,
-    val columnCount: Int = 2,
-    val columnRowMap: Map<String, Int> = mapOf("A" to 1, "B" to 1, "C" to 1, "D" to 1),
+    val columnCount: Int = 6,
+    val columnRowMap: Map<String, Int> = mapOf("A" to 1, "B" to 1, "C" to 1, "D" to 1, "E" to 1, "F" to 1),
     val currentSheetRowIndex: Int = 1,
     val draftRow: ExcelDraftRow = ExcelDraftRow(),
     val duplicateHighlightRow: Long? = null,
@@ -142,7 +142,7 @@ object OverlayStateManager {
         prefs?.let { p ->
             val country = p.getString("selected_country", "BD") ?: "BD"
             val genderName = p.getString("selected_gender", Gender.ANY.name) ?: Gender.ANY.name
-            val colCount = p.getInt("column_count", 3)
+            val colCount = p.getInt("column_count", 6)
             val savedRowIndex = p.getInt("current_sheet_row_index", 1)
             val bubbleSizeName = p.getString("bubble_size", BubbleSize.MEDIUM.name) ?: BubbleSize.MEDIUM.name
             val themeName = p.getString("app_theme", AppThemeMode.DARK.name) ?: AppThemeMode.DARK.name
@@ -219,7 +219,9 @@ object OverlayStateManager {
             val rowB = p.getInt("sheet_row_B", 1)
             val rowC = p.getInt("sheet_row_C", 1)
             val rowD = p.getInt("sheet_row_D", 1)
-            val colRowMap = mapOf("A" to rowA, "B" to rowB, "C" to rowC, "D" to rowD)
+            val rowE = p.getInt("sheet_row_E", 1)
+            val rowF = p.getInt("sheet_row_F", 1)
+            val colRowMap = mapOf("A" to rowA, "B" to rowB, "C" to rowC, "D" to rowD, "E" to rowE, "F" to rowF)
 
             _uiState.update {
                 it.copy(
@@ -451,10 +453,10 @@ object OverlayStateManager {
     }
 
     fun resetAllColumnRowsToOne() {
-        val resetMap = mapOf("A" to 1, "B" to 1, "C" to 1, "D" to 1)
+        val resetMap = mapOf("A" to 1, "B" to 1, "C" to 1, "D" to 1, "E" to 1, "F" to 1)
         _uiState.update { it.copy(columnRowMap = resetMap) }
         prefs?.edit()?.apply {
-            listOf("A", "B", "C", "D").forEach { col ->
+            listOf("A", "B", "C", "D", "E", "F").forEach { col ->
                 putInt("sheet_row_$col", 1)
             }
         }?.apply()
@@ -525,6 +527,12 @@ object OverlayStateManager {
                 if (r.colD.equals(clipText, ignoreCase = true) && r.colD.isNotEmpty()) {
                     isDuplicate = true; conflictRowId = r.id; conflictCol = "D"; break
                 }
+                if (r.colE.equals(clipText, ignoreCase = true) && r.colE.isNotEmpty()) {
+                    isDuplicate = true; conflictRowId = r.id; conflictCol = "E"; break
+                }
+                if (r.colF.equals(clipText, ignoreCase = true) && r.colF.isNotEmpty()) {
+                    isDuplicate = true; conflictRowId = r.id; conflictCol = "F"; break
+                }
             }
 
             if (isDuplicate) {
@@ -563,6 +571,8 @@ object OverlayStateManager {
                         "B" -> existing.copy(colB = clipText, hasDuplicateWarning = false)
                         "C" -> existing.copy(colC = clipText, hasDuplicateWarning = false)
                         "D" -> existing.copy(colD = clipText, hasDuplicateWarning = false)
+                        "E" -> existing.copy(colE = clipText, hasDuplicateWarning = false)
+                        "F" -> existing.copy(colF = clipText, hasDuplicateWarning = false)
                         else -> existing.copy(colA = clipText)
                     }
                 } else {
@@ -572,6 +582,8 @@ object OverlayStateManager {
                         colB = if (col == "B") clipText else "",
                         colC = if (col == "C") clipText else "",
                         colD = if (col == "D") clipText else "",
+                        colE = if (col == "E") clipText else "",
+                        colF = if (col == "F") clipText else "",
                         hasDuplicateWarning = false
                     )
                 }
@@ -605,6 +617,8 @@ object OverlayStateManager {
                 "B" -> row.colB
                 "C" -> row.colC
                 "D" -> row.colD
+                "E" -> row.colE
+                "F" -> row.colF
                 else -> row.colA
             }.trim()
             if (v.isNotEmpty()) v else null
@@ -632,9 +646,9 @@ object OverlayStateManager {
 
         val sorted = rows.sortedBy { it.id }
         val tsvLines = sorted.map { row ->
-            listOf(row.colA, row.colB, row.colC, row.colD).joinToString("\t")
+            listOf(row.colA, row.colB, row.colC, row.colD, row.colE, row.colF).joinToString("\t")
         }
-        val header = "Col A\tCol B\tCol C\tCol D"
+        val header = "Col A\tCol B\tCol C\tCol D\tCol E\tCol F"
         val fullTsv = (listOf(header) + tsvLines).joinToString("\n")
 
         com.example.util.ClipboardHelper.copyToClipboard(
@@ -919,17 +933,95 @@ object OverlayStateManager {
     }
 
     fun startProxyConnection(context: Context? = null) {
+        val state = _uiState.value
+        val proxy = state.proxyState
+
+        if (proxy.host.isBlank()) {
+            context?.let { Toast.makeText(it, "Please enter a valid proxy server host!", Toast.LENGTH_SHORT).show() }
+            return
+        }
+
+        // Instant 1-click connection!
+        _uiState.update {
+            it.copy(
+                proxyState = it.proxyState.copy(
+                    isConnected = true,
+                    isTesting = false,
+                    connectedDurationSeconds = 0,
+                    statusText = "Connected to ${proxy.host}:${proxy.port}"
+                )
+            )
+        }
+
+        // Start live duration timer
+        proxyDurationJob?.cancel()
+        proxyDurationJob = scope.launch {
+            while (isActive) {
+                delay(1000)
+                _uiState.update {
+                    it.copy(
+                        proxyState = it.proxyState.copy(
+                            connectedDurationSeconds = it.proxyState.connectedDurationSeconds + 1
+                        )
+                    )
+                }
+            }
+        }
+
+        context?.let { ctx ->
+            VibrationHelper.vibrateSuccess(ctx)
+            SuperProxyVpnService.start(
+                ctx,
+                proxy.profileName,
+                proxy.host,
+                proxy.port,
+                proxy.allowedApps
+            )
+            Toast.makeText(ctx, "Super Proxy Connected! (${proxy.host}:${proxy.port})", Toast.LENGTH_SHORT).show()
+        }
+
+        // Asynchronously resolve external IP and Country in background
+        scope.launch {
+            try {
+                val result = ProxyTester.testProxy(
+                    host = proxy.host,
+                    port = proxy.port,
+                    protocol = proxy.protocol,
+                    username = proxy.username,
+                    password = proxy.password,
+                    pingOptimized = true
+                )
+                if (result.isSuccess && _uiState.value.proxyState.isConnected) {
+                    val effectiveIp = result.resolvedIp ?: proxy.host
+                    val country = result.countryCode ?: proxy.countryCode
+                    val latency = if (result.latencyMs > 0) result.latencyMs else 45L
+                    _uiState.update {
+                        it.copy(
+                            proxyState = it.proxyState.copy(
+                                ipAddress = effectiveIp,
+                                countryCode = country,
+                                pingMs = latency,
+                                statusText = "Connected ($effectiveIp • ${latency}ms)"
+                            )
+                        )
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun testProxyOnly(context: Context? = null, onComplete: ((Boolean, String) -> Unit)? = null) {
         scope.launch {
             val state = _uiState.value
             val proxy = state.proxyState
-
             if (proxy.host.isBlank()) {
-                context?.let { Toast.makeText(it, "Please enter a valid proxy server host!", Toast.LENGTH_SHORT).show() }
+                context?.let { Toast.makeText(it, "Please enter a valid proxy host to test!", Toast.LENGTH_SHORT).show() }
+                onComplete?.invoke(false, "Host is empty")
                 return@launch
             }
 
             _uiState.update {
-                it.copy(proxyState = it.proxyState.copy(isTesting = true, statusText = "Testing & Connecting..."))
+                it.copy(proxyState = it.proxyState.copy(isTesting = true, statusText = "Testing connection..."))
             }
 
             val result = ProxyTester.testProxy(
@@ -938,69 +1030,33 @@ object OverlayStateManager {
                 protocol = proxy.protocol,
                 username = proxy.username,
                 password = proxy.password,
-                pingOptimized = state.pingOptimization
+                pingOptimized = false
             )
-
-            if (!result.isSuccess) {
-                _uiState.update {
-                    it.copy(
-                        proxyState = it.proxyState.copy(
-                            isConnected = false,
-                            isTesting = false,
-                            statusText = "Connection Failed: ${result.errorMessage}"
-                        )
-                    )
-                }
-                context?.let { ctx ->
-                    VibrationHelper.vibrateDuplicateAlert(ctx)
-                    Toast.makeText(ctx, "Proxy Failed: ${result.errorMessage}", Toast.LENGTH_LONG).show()
-                }
-                return@launch
-            }
-
-            val effectiveIp = result.resolvedIp ?: proxy.host
-            val country = result.countryCode ?: proxy.countryCode
-            val latency = if (result.latencyMs > 0) result.latencyMs else 42L
 
             _uiState.update {
                 it.copy(
                     proxyState = it.proxyState.copy(
-                        isConnected = true,
                         isTesting = false,
-                        ipAddress = effectiveIp,
-                        countryCode = country,
-                        pingMs = latency,
-                        connectedDurationSeconds = 0,
-                        statusText = "Connected ($effectiveIp • ${latency}ms)"
+                        ipAddress = if (result.isSuccess) (result.resolvedIp ?: proxy.host) else proxy.ipAddress,
+                        countryCode = if (result.isSuccess) (result.countryCode ?: proxy.countryCode) else proxy.countryCode,
+                        pingMs = if (result.isSuccess) result.latencyMs else -1L,
+                        statusText = if (result.isSuccess) "Test Succeeded (${result.latencyMs}ms)" else "Test Failed: ${result.errorMessage}"
                     )
                 )
             }
 
-            // Start live duration timer
-            proxyDurationJob?.cancel()
-            proxyDurationJob = scope.launch {
-                while (isActive) {
-                    delay(1000)
-                    _uiState.update {
-                        it.copy(
-                            proxyState = it.proxyState.copy(
-                                connectedDurationSeconds = it.proxyState.connectedDurationSeconds + 1
-                            )
-                        )
-                    }
-                }
-            }
-
             context?.let { ctx ->
-                VibrationHelper.vibrateSuccess(ctx)
-                SuperProxyVpnService.start(
-                    ctx,
-                    proxy.profileName,
-                    proxy.host,
-                    proxy.port,
-                    proxy.allowedApps
-                )
-                Toast.makeText(ctx, "Super Proxy Connected! ($country • $effectiveIp)", Toast.LENGTH_SHORT).show()
+                if (result.isSuccess) {
+                    VibrationHelper.vibrateSuccess(ctx)
+                    val msg = "Proxy Test Succeeded! Latency: ${result.latencyMs}ms | IP: ${result.resolvedIp} (${result.countryCode})"
+                    Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                    onComplete?.invoke(true, msg)
+                } else {
+                    VibrationHelper.vibrateDuplicateAlert(ctx)
+                    val msg = "Proxy Test Failed: ${result.errorMessage}"
+                    Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                    onComplete?.invoke(false, msg)
+                }
             }
         }
     }

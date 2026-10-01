@@ -95,7 +95,6 @@ fun MainScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(AppNavTab.NAMES) }
-    var inAppBubbleVisible by remember { mutableStateOf(true) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         OverlayStateManager.requestedAppTab.collect { tabName ->
@@ -110,17 +109,13 @@ fun MainScreen(
         }
     }
 
-    // Coordinates for in-app movable bubble
-    var bubbleOffsetX by remember { mutableFloatStateOf(40f) }
-    var bubbleOffsetY by remember { mutableFloatStateOf(240f) }
-
     Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
                         Text(
-                            text = "My Short App",
+                            text = "Work ShortCut",
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp
                         )
@@ -232,41 +227,8 @@ fun MainScreen(
                         repository = repository
                     )
                     AppNavTab.CLEAR_DATA -> ClearDataSection(state = state)
-                    AppNavTab.SETTINGS -> SettingsSection(
-                        state = state,
-                        inAppBubbleVisible = inAppBubbleVisible,
-                        onToggleInAppBubble = { inAppBubbleVisible = it }
-                    )
+                    AppNavTab.SETTINGS -> SettingsSection(state = state)
                 }
-            }
-        }
-
-        // Draggable In-App Movable Messenger Bubble (Interactive Preview & Real In-App Use)
-        if (inAppBubbleVisible) {
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            bubbleOffsetX.roundToInt(),
-                            bubbleOffsetY.roundToInt()
-                        )
-                    }
-                    .testTag("in_app_movable_bubble_container")
-            ) {
-                FloatingOverlayWindowContent(
-                    state = state,
-                    onDragStart = { _, _ -> },
-                    onDragDelta = { dx, dy ->
-                        bubbleOffsetX = (bubbleOffsetX + dx).coerceIn(10f, 750f)
-                        bubbleOffsetY = (bubbleOffsetY + dy).coerceIn(120f, 1500f)
-                    },
-                    onToggleExpand = {
-                        OverlayStateManager.toggleOverlayExpanded()
-                    },
-                    onCloseOverlay = {
-                        inAppBubbleVisible = false
-                    }
-                )
             }
         }
     }

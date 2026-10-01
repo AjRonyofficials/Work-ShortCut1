@@ -14,15 +14,15 @@ enum class Gender {
 
 object NameGenerator {
 
-    val supportedCountries = listOf(
+    val commonCountries = listOf(
         CountryOption("BD", "Bangladesh", "🇧🇩"),
         CountryOption("US", "United States", "🇺🇸"),
         CountryOption("UK", "United Kingdom", "🇬🇧"),
         CountryOption("IN", "India", "🇮🇳"),
         CountryOption("CA", "Canada", "🇨🇦"),
+        CountryOption("FR", "France", "🇫🇷"),
         CountryOption("DE", "Germany", "🇩🇪"),
         CountryOption("AU", "Australia", "🇦🇺"),
-        CountryOption("FR", "France", "🇫🇷"),
         CountryOption("JP", "Japan", "🇯🇵"),
         CountryOption("SA", "Saudi Arabia", "🇸🇦"),
         CountryOption("AE", "United Arab Emirates", "🇦🇪"),
@@ -31,6 +31,101 @@ object NameGenerator {
         CountryOption("TR", "Turkey", "🇹🇷"),
         CountryOption("PK", "Pakistan", "🇵🇰"),
         CountryOption("ES", "Spain", "🇪🇸")
+    )
+
+    val supportedCountries = commonCountries
+
+    val allCountries = listOf(
+        CountryOption("AF", "Afghanistan", "🇦🇫"),
+        CountryOption("AL", "Albania", "🇦🇱"),
+        CountryOption("DZ", "Algeria", "🇩🇿"),
+        CountryOption("AR", "Argentina", "🇦🇷"),
+        CountryOption("AM", "Armenia", "🇦🇲"),
+        CountryOption("AU", "Australia", "🇦🇺"),
+        CountryOption("AT", "Austria", "🇦🇹"),
+        CountryOption("AZ", "Azerbaijan", "🇦🇿"),
+        CountryOption("BH", "Bahrain", "🇧🇭"),
+        CountryOption("BD", "Bangladesh", "🇧🇩"),
+        CountryOption("BY", "Belarus", "🇧🇾"),
+        CountryOption("BE", "Belgium", "🇧🇪"),
+        CountryOption("BO", "Bolivia", "🇧🇴"),
+        CountryOption("BA", "Bosnia", "🇧🇦"),
+        CountryOption("BR", "Brazil", "🇧🇷"),
+        CountryOption("BG", "Bulgaria", "🇧🇬"),
+        CountryOption("KH", "Cambodia", "🇰🇭"),
+        CountryOption("CA", "Canada", "🇨🇦"),
+        CountryOption("CL", "Chile", "🇨🇱"),
+        CountryOption("CN", "China", "🇨🇳"),
+        CountryOption("CO", "Colombia", "🇨🇴"),
+        CountryOption("CR", "Costa Rica", "🇨🇷"),
+        CountryOption("HR", "Croatia", "🇭🇷"),
+        CountryOption("CY", "Cyprus", "🇨🇾"),
+        CountryOption("CZ", "Czech Republic", "🇨🇿"),
+        CountryOption("DK", "Denmark", "🇩🇰"),
+        CountryOption("EG", "Egypt", "🇪🇬"),
+        CountryOption("EE", "Estonia", "🇪🇪"),
+        CountryOption("FI", "Finland", "🇫🇮"),
+        CountryOption("FR", "France", "🇫🇷"),
+        CountryOption("GE", "Georgia", "🇬🇪"),
+        CountryOption("DE", "Germany", "🇩🇪"),
+        CountryOption("GH", "Ghana", "🇬🇭"),
+        CountryOption("GR", "Greece", "🇬🇷"),
+        CountryOption("HK", "Hong Kong", "🇭🇰"),
+        CountryOption("HU", "Hungary", "🇭🇺"),
+        CountryOption("IS", "Iceland", "🇮🇸"),
+        CountryOption("IN", "India", "🇮🇳"),
+        CountryOption("ID", "Indonesia", "🇮🇩"),
+        CountryOption("IR", "Iran", "🇮🇷"),
+        CountryOption("IQ", "Iraq", "🇮🇶"),
+        CountryOption("IE", "Ireland", "🇮🇪"),
+        CountryOption("IL", "Israel", "🇮🇱"),
+        CountryOption("IT", "Italy", "🇮🇹"),
+        CountryOption("JM", "Jamaica", "🇯🇲"),
+        CountryOption("JP", "Japan", "🇯🇵"),
+        CountryOption("JO", "Jordan", "🇯🇴"),
+        CountryOption("KZ", "Kazakhstan", "🇰🇿"),
+        CountryOption("KE", "Kenya", "🇰🇪"),
+        CountryOption("KW", "Kuwait", "🇰🇼"),
+        CountryOption("LB", "Lebanon", "🇱🇧"),
+        CountryOption("MY", "Malaysia", "🇲🇾"),
+        CountryOption("MV", "Maldives", "🇲🇻"),
+        CountryOption("MX", "Mexico", "🇲🇽"),
+        CountryOption("MA", "Morocco", "🇲🇦"),
+        CountryOption("NP", "Nepal", "🇳🇵"),
+        CountryOption("NL", "Netherlands", "🇳🇱"),
+        CountryOption("NZ", "New Zealand", "🇳🇿"),
+        CountryOption("NG", "Nigeria", "🇳🇬"),
+        CountryOption("NO", "Norway", "🇳🇴"),
+        CountryOption("OM", "Oman", "🇴🇲"),
+        CountryOption("PK", "Pakistan", "🇵🇰"),
+        CountryOption("PA", "Panama", "🇵🇦"),
+        CountryOption("PE", "Peru", "🇵🇪"),
+        CountryOption("PH", "Philippines", "🇵🇭"),
+        CountryOption("PL", "Poland", "🇵🇱"),
+        CountryOption("PT", "Portugal", "🇵🇹"),
+        CountryOption("QA", "Qatar", "🇶🇦"),
+        CountryOption("RO", "Romania", "🇷🇴"),
+        CountryOption("RU", "Russia", "🇷🇺"),
+        CountryOption("SA", "Saudi Arabia", "🇸🇦"),
+        CountryOption("RS", "Serbia", "🇷🇸"),
+        CountryOption("SG", "Singapore", "🇸🇬"),
+        CountryOption("ZA", "South Africa", "🇿🇦"),
+        CountryOption("KR", "South Korea", "🇰🇷"),
+        CountryOption("ES", "Spain", "🇪🇸"),
+        CountryOption("LK", "Sri Lanka", "🇱🇰"),
+        CountryOption("SE", "Sweden", "🇸🇪"),
+        CountryOption("CH", "Switzerland", "🇨🇭"),
+        CountryOption("TW", "Taiwan", "🇹🇼"),
+        CountryOption("TH", "Thailand", "🇹🇭"),
+        CountryOption("TR", "Turkey", "🇹🇷"),
+        CountryOption("UA", "Ukraine", "🇺🇦"),
+        CountryOption("AE", "United Arab Emirates", "🇦🇪"),
+        CountryOption("UK", "United Kingdom", "🇬🇧"),
+        CountryOption("US", "United States", "🇺🇸"),
+        CountryOption("UZ", "Uzbekistan", "🇺🇿"),
+        CountryOption("VN", "Vietnam", "🇻🇳"),
+        CountryOption("YE", "Yemen", "🇾🇪"),
+        CountryOption("ZW", "Zimbabwe", "🇿🇼")
     )
 
     private val namesByCountry: Map<String, CountryNames> = mapOf(
@@ -155,7 +250,24 @@ object NameGenerator {
     )
 
     fun generateName(countryCode: String, gender: Gender = Gender.ANY): String {
-        val data = namesByCountry[countryCode.uppercase()] ?: namesByCountry["BD"]!!
+        val code = countryCode.uppercase()
+        val data = namesByCountry[code] ?: when (code) {
+            "SA", "AE", "EG", "QA", "KW", "BH", "OM", "JO", "LB", "IQ", "DZ", "MA", "YE" -> namesByCountry["SA"]!!
+            "ES", "MX", "AR", "CO", "PE", "CL", "CR", "PA", "UY", "BO" -> namesByCountry["ES"]!!
+            "PT", "BR" -> namesByCountry["BR"]!!
+            "IN", "NP", "LK" -> namesByCountry["IN"]!!
+            "PK", "AF" -> namesByCountry["PK"]!!
+            "BD" -> namesByCountry["BD"]!!
+            "FR", "BE", "LU" -> namesByCountry["FR"]!!
+            "DE", "AT", "CH", "NL" -> namesByCountry["DE"]!!
+            "IT" -> namesByCountry["IT"]!!
+            "TR", "AZ" -> namesByCountry["TR"]!!
+            "JP" -> namesByCountry["JP"]!!
+            "UK", "IE" -> namesByCountry["UK"]!!
+            "AU", "NZ" -> namesByCountry["AU"]!!
+            "CA" -> namesByCountry["CA"]!!
+            else -> namesByCountry["US"]!!
+        }
         val isMale = when (gender) {
             Gender.MALE -> true
             Gender.FEMALE -> false
@@ -168,7 +280,8 @@ object NameGenerator {
     }
 
     fun getCountryOption(countryCode: String): CountryOption {
-        return supportedCountries.firstOrNull { it.code.equals(countryCode, ignoreCase = true) }
+        return allCountries.firstOrNull { it.code.equals(countryCode, ignoreCase = true) }
+            ?: commonCountries.firstOrNull { it.code.equals(countryCode, ignoreCase = true) }
             ?: CountryOption("BD", "Bangladesh", "🇧🇩")
     }
 

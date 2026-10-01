@@ -88,6 +88,8 @@ fun ExcelCollectorSection(
     var editColB by remember { mutableStateOf("") }
     var editColC by remember { mutableStateOf("") }
     var editColD by remember { mutableStateOf("") }
+    var editColE by remember { mutableStateOf("") }
+    var editColF by remember { mutableStateOf("") }
 
     val colCount = state.columnCount
     val sortedRows = savedRows.sortedBy { it.id }
@@ -97,6 +99,8 @@ fun ExcelCollectorSection(
     val colorB = Color(0xFF2196F3) // Blue
     val colorC = Color(0xFFFF9800) // Orange
     val colorD = Color(0xFF9C27B0) // Purple
+    val colorE = Color(0xFF00BCD4) // Cyan
+    val colorF = Color(0xFFE91E63) // Hot Pink
 
     LazyColumn(
         modifier = modifier
@@ -156,23 +160,27 @@ fun ExcelCollectorSection(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Column Count Selection Chips (2, 3, 4)
+                    // Column Count Selection Chips (2, 3, 4, 5, 6)
                     Text(
-                        text = "Select Number of Columns for Overlay & Sheet:",
+                        text = "Select Number of Columns for Overlay & Sheet (up to 6):",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf(2, 3, 4).forEach { count ->
+                        listOf(2, 3, 4, 5, 6).forEach { count ->
                             val label = when (count) {
-                                2 -> "2 Columns (A, B)"
-                                3 -> "3 Columns (A, B, C)"
-                                else -> "4 Columns (A, B, C, D)"
+                                2 -> "2 Cols (A, B)"
+                                3 -> "3 Cols (A-C)"
+                                4 -> "4 Cols (A-D)"
+                                5 -> "5 Cols (A-E)"
+                                else -> "6 Cols (A-F)"
                             }
                             FilterChip(
                                 selected = colCount == count,
@@ -209,13 +217,17 @@ fun ExcelCollectorSection(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         val activeCols = when (colCount) {
                             2 -> listOf("A", "B")
                             3 -> listOf("A", "B", "C")
-                            else -> listOf("A", "B", "C", "D")
+                            4 -> listOf("A", "B", "C", "D")
+                            5 -> listOf("A", "B", "C", "D", "E")
+                            else -> listOf("A", "B", "C", "D", "E", "F")
                         }
 
                         activeCols.forEach { colKey ->
@@ -224,7 +236,9 @@ fun ExcelCollectorSection(
                                 "A" -> colorA
                                 "B" -> colorB
                                 "C" -> colorC
-                                else -> colorD
+                                "D" -> colorD
+                                "E" -> colorE
+                                else -> colorF
                             }
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
@@ -331,6 +345,8 @@ fun ExcelCollectorSection(
                                         editColB = targetRow.colB
                                         editColC = targetRow.colC
                                         editColD = targetRow.colD
+                                        editColE = targetRow.colE
+                                        editColF = targetRow.colF
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
@@ -440,6 +456,40 @@ fun ExcelCollectorSection(
                             }
                         }
 
+                        // Copy Column E (if 5+ columns)
+                        if (colCount >= 5) {
+                            val countE = sortedRows.count { it.colE.isNotBlank() }
+                            Button(
+                                onClick = {
+                                    OverlayStateManager.copyColumnRecords(context, "E", sortedRows)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = colorE),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.testTag("copy_col_e_button")
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Copy Col E ($countE)", fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Copy Column F (if 6 columns)
+                        if (colCount >= 6) {
+                            val countF = sortedRows.count { it.colF.isNotBlank() }
+                            Button(
+                                onClick = {
+                                    OverlayStateManager.copyColumnRecords(context, "F", sortedRows)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = colorF),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.testTag("copy_col_f_button")
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Copy Col F ($countF)", fontWeight = FontWeight.Bold)
+                            }
+                        }
+
                         // Copy Entire Table (Excel TSV)
                         OutlinedButton(
                             onClick = {
@@ -493,6 +543,8 @@ fun ExcelCollectorSection(
                         editColB = ""
                         editColC = ""
                         editColD = ""
+                        editColE = ""
+                        editColF = ""
                     }
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -599,6 +651,8 @@ fun ExcelCollectorSection(
                                         editColB = row.colB
                                         editColC = row.colC
                                         editColD = row.colD
+                                        editColE = row.colE
+                                        editColF = row.colF
                                     },
                                     modifier = Modifier.size(32.dp).testTag("edit_row_${row.id}")
                                 ) {
@@ -742,6 +796,62 @@ fun ExcelCollectorSection(
                                     )
                                 }
                             }
+
+                            // Col E
+                            if (colCount >= 5) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "E: ",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = colorE,
+                                        modifier = Modifier.width(24.dp)
+                                    )
+                                    Text(
+                                        text = if (row.colE.isNotEmpty()) row.colE else "— empty —",
+                                        fontSize = 13.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = if (row.colE.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable {
+                                                if (row.colE.isNotEmpty()) {
+                                                    com.example.util.ClipboardHelper.copyToClipboard(context, row.colE, toastMessage = "Copied Col E: ${row.colE}")
+                                                }
+                                            }
+                                    )
+                                }
+                            }
+
+                            // Col F
+                            if (colCount >= 6) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "F: ",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = colorF,
+                                        modifier = Modifier.width(24.dp)
+                                    )
+                                    Text(
+                                        text = if (row.colF.isNotEmpty()) row.colF else "— empty —",
+                                        fontSize = 13.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = if (row.colF.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable {
+                                                if (row.colF.isNotEmpty()) {
+                                                    com.example.util.ClipboardHelper.copyToClipboard(context, row.colF, toastMessage = "Copied Col F: ${row.colF}")
+                                                }
+                                            }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -797,6 +907,24 @@ fun ExcelCollectorSection(
                             singleLine = true
                         )
                     }
+                    if (colCount >= 5) {
+                        OutlinedTextField(
+                            value = editColE,
+                            onValueChange = { editColE = it },
+                            label = { Text("Column E") },
+                            modifier = Modifier.fillMaxWidth().testTag("edit_col_e_input"),
+                            singleLine = true
+                        )
+                    }
+                    if (colCount >= 6) {
+                        OutlinedTextField(
+                            value = editColF,
+                            onValueChange = { editColF = it },
+                            label = { Text("Column F") },
+                            modifier = Modifier.fillMaxWidth().testTag("edit_col_f_input"),
+                            singleLine = true
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -807,6 +935,8 @@ fun ExcelCollectorSection(
                             colB = editColB.trim(),
                             colC = editColC.trim(),
                             colD = editColD.trim(),
+                            colE = editColE.trim(),
+                            colF = editColF.trim(),
                             hasDuplicateWarning = false,
                             duplicateDetails = ""
                         )

@@ -12,6 +12,13 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Super Proxy style VpnService that provides real-time proxy routing tunnel
@@ -34,12 +41,12 @@ class SuperProxyVpnService : VpnService() {
         val allowedApps = intent?.getStringArrayListExtra(EXTRA_ALLOWED_APPS) ?: arrayListOf<String>()
 
         startForegroundNotification(profileName, server, port)
-        establishVpn(profileName, allowedApps)
+        establishVpn(profileName, server, port, allowedApps)
 
         return START_STICKY
     }
 
-    private fun establishVpn(profileName: String, allowedApps: List<String>) {
+    private fun establishVpn(profileName: String, server: String, port: Int, allowedApps: List<String>) {
         try {
             vpnInterface?.close()
 
@@ -51,6 +58,13 @@ class SuperProxyVpnService : VpnService() {
                 .addDnsServer("1.1.1.1")
                 .setMtu(1500)
 
+            // Route proxy via system ProxyInfo where supported (API 29+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                try {
+                    builder.setHttpProxy(android.net.ProxyInfo.buildDirectProxy(server, port))
+                } catch (_: Exception) {}
+            }
+
             // Super Proxy style: Route ONLY the selected apps if specified
             if (allowedApps.isNotEmpty()) {
                 for (pkg in allowedApps) {
@@ -61,7 +75,29 @@ class SuperProxyVpnService : VpnService() {
             }
 
             vpnInterface = builder.establish()
+            startTunnelLoop()
         } catch (_: Exception) {}
+    }
+
+    private var tunnelJob: kotlinx.coroutines.Job? = null
+    private val serviceScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
+
+    private fun startTunnelLoop() {
+        tunnelJob?.cancel()
+        val pfd = vpnInterface ?: return
+        tunnelJob = serviceScope.launch {
+            try {
+                val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
+                val buffer = java.nio.ByteBuffer.allocate(32767)
+                while (isActive) {
+                    val length = inputStream.read(buffer.array())
+                    if (length <= 0) {
+                        delay(100)
+                    }
+                    buffer.clear()
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private fun startForegroundNotification(profileName: String, server: String, port: Int) {
@@ -113,6 +149,8 @@ class SuperProxyVpnService : VpnService() {
     }
 
     private fun stopVpn() {
+        tunnelJob?.cancel()
+        tunnelJob = null
         try {
             vpnInterface?.close()
             vpnInterface = null
