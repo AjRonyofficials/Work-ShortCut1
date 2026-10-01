@@ -16,15 +16,31 @@ data class AppInfoItem(
 
 object AppManagerHelper {
 
-    fun isLiteOrModdedApp(packageName: String, appName: String): Boolean {
+    /**
+     * Specifically identifies Facebook Lite and modified Lite variants
+     * which feature internal "Clear Storage on Your Phone" with "Accounts and settings" checkbox.
+     */
+    fun isFacebookLite(packageName: String, appName: String): Boolean {
         val p = packageName.lowercase()
         val a = appName.lowercase()
-        return p.contains("lite") ||
-                p.contains("facebook") ||
-                p.contains("fblite") ||
-                p.contains("katana") ||
-                a.contains("lite") ||
-                a.contains("facebook")
+        val isExplicitLite = p.contains("lite") || p.contains("fblite") || a.contains("lite")
+        val isFacebook = p.contains("facebook") || a.contains("facebook")
+        // Exclude official full Facebook app
+        val isOfficial = p == "com.facebook.katana" || p == "com.facebook.wakizashi" || (a == "facebook" && !a.contains("lite"))
+        return (isExplicitLite && isFacebook) || (p.contains("com.facebook.lite") || p.contains("lite96") || p.contains("lite_f")) && !isOfficial
+    }
+
+    /**
+     * Specifically identifies official Facebook full app (com.facebook.katana)
+     */
+    fun isFacebookOfficial(packageName: String, appName: String): Boolean {
+        val p = packageName.lowercase()
+        val a = appName.lowercase()
+        return p == "com.facebook.katana" || p == "com.facebook.wakizashi" || (a == "facebook" && !a.contains("lite"))
+    }
+
+    fun isLiteOrModdedApp(packageName: String, appName: String): Boolean {
+        return isFacebookLite(packageName, appName)
     }
 
     fun getInstalledLauncherApps(context: Context): List<AppInfoItem> {
@@ -47,7 +63,7 @@ object AppManagerHelper {
                 AppInfoItem(
                     appName = label,
                     packageName = pkgName,
-                    isLiteStorageApp = isLiteOrModdedApp(pkgName, label)
+                    isLiteStorageApp = isFacebookLite(pkgName, label)
                 )
             } catch (_: Exception) {
                 null
@@ -64,7 +80,7 @@ object AppManagerHelper {
         appName: String = "App",
         isLiteStorageMode: Boolean = false
     ) {
-        val effectiveIsLite = isLiteStorageMode || isLiteOrModdedApp(packageName, appName)
+        val effectiveIsLite = isLiteStorageMode || isFacebookLite(packageName, appName)
         com.example.service.AutoCleanAccessibilityService.startAutoClean(
             context = context,
             packageName = packageName,

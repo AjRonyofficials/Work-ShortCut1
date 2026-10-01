@@ -86,9 +86,9 @@ class SuperProxyVpnService : VpnService() {
                 .setSession("SuperProxy: $profileName")
                 .setMtu(1500)
                 .addAddress("10.0.0.2", 24)
-                .addDnsServer("8.8.8.8")
-                .addDnsServer("1.1.1.1")
                 .addRoute("0.0.0.0", 0) // Route entire device IPv4 traffic into tun0
+                .addDnsServer("1.1.1.1")
+                .addDnsServer("8.8.8.8")
 
             // 1. App Routing & Loop Prevention:
             // Never route our own app package into the VPN to prevent infinite loop
@@ -121,7 +121,9 @@ class SuperProxyVpnService : VpnService() {
             // 3. Generate YAML configuration required by hev-socks5-tunnel
             val configFile = File(cacheDir, "hev-socks5.conf")
             val authSection = if (user.isNotBlank() && pass.isNotBlank()) {
-                "  username: '$user'\n  password: '$pass'"
+                val safeUser = user.replace("\"", "\\\"")
+                val safePass = pass.replace("\"", "\\\"")
+                "  username: \"$safeUser\"\n  password: \"$safePass\""
             } else ""
 
             val configContent = """

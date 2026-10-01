@@ -4,13 +4,22 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bolt
@@ -18,8 +27,10 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.Key
@@ -27,8 +38,11 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.TableChart
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,6 +50,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -52,12 +67,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import com.example.data.local.WorkShortcutRepository
 import com.example.data.local.model.ExcelRowEntity
 import com.example.data.local.model.ProxyProfileEntity
@@ -95,6 +114,93 @@ fun MainScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(AppNavTab.NAMES) }
+    val context = LocalContext.current
+    var showDeveloperNoticeDialog by remember { mutableStateOf(true) }
+
+    if (showDeveloperNoticeDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeveloperNoticeDialog = false },
+            icon = {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(AlertRed.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = AlertRed,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            },
+            title = {
+                Text(
+                    text = "⚠️ গুরুত্বপূর্ণ নোটিশ",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "আপনার পিতৃ পরিচয় ঠিক থাকলে অ্যাপ এর নাম টা নিজের নামে চেইঞ্জ করে চালিয়ে দিয়েন না, আগে পারমিশন নিয়েন।",
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "আর কোনো আপডেট চাইলে বা সমস্যা হলে 'Contact Developer' এ চাপ দিলে সরাসরি টেলিগ্রামে যোগাযোগ করতে পারবেন।",
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showDeveloperNoticeDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("OK / ঠিক আছে", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            val telegramIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/ismailislamrony1")).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(telegramIntent)
+                        } catch (_: Exception) {
+                            Toast.makeText(context, "Telegram: @ismailislamrony1", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Send,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = BrandSky
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Contact Developer", color = BrandSky, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         OverlayStateManager.requestedAppTab.collect { tabName ->
@@ -207,6 +313,7 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+                    .imePadding()
             ) {
                 when (selectedTab) {
                     AppNavTab.SHORTCUTS -> AppShortcutsSection(state = state)
