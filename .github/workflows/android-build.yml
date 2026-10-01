@@ -32,7 +32,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.11.1'
+          gradle-version: '9.3.1'
 
       - name: Prepare Environment Files
         run: |
@@ -58,8 +58,8 @@ jobs:
       - name: Ensure Gradle Wrapper and Executable Permissions
         run: |
           if [ ! -f "gradlew" ]; then
-            echo "gradlew not found in repository root. Auto-generating Gradle wrapper..."
-            gradle wrapper --gradle-version 8.11.1 || gradle wrapper || true
+            echo "gradlew not found in repository root. Auto-generating Gradle wrapper with Gradle 9.3.1..."
+            gradle wrapper --gradle-version 9.3.1 || gradle wrapper || true
           fi
           if [ -f "gradlew" ]; then
             chmod +x gradlew
@@ -71,10 +71,10 @@ jobs:
       - name: Build Debug APK
         run: |
           if [ -x "./gradlew" ]; then
-            echo "Building with ./gradlew..."
+            echo "Building with ./gradlew (Gradle 9.3.1)..."
             ./gradlew assembleDebug --no-daemon --stacktrace
           else
-            echo "Building with gradle CLI..."
+            echo "Building with gradle CLI (Gradle 9.3.1)..."
             gradle assembleDebug --no-daemon --stacktrace
           fi
 
