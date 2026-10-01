@@ -23,6 +23,15 @@ import java.io.FileOutputStream
 /**
  * Super Proxy style VpnService that provides real system-level SOCKS5/HTTP routing
  * using Android's native TUN virtual interface and hev-socks5-tunnel native core.
+ *
+ * Fixes:
+ * 1. Safe MTU set to 1500 to prevent packet fragmentation.
+ * 2. DNS servers explicitly configured (8.8.8.8, 1.1.1.1) and routed through TUN.
+ * 3. UDP mapped to TCP (udp: 'tcp') in hev-socks5-tunnel config for robust DNS resolution.
+ * 4. Infinite loop prevention via addDisallowedApplication(packageName), ensuring the
+ *    proxy engine's own outbound connection is never routed back into the tunnel.
+ * 5. Universal app routing: when no specific apps are filtered, all apps (Chrome, etc.)
+ *    are routed through the tunnel by default.
  */
 class SuperProxyVpnService : VpnService() {
 
@@ -67,22 +76,30 @@ class SuperProxyVpnService : VpnService() {
         try {
             val builder = Builder()
                 .setSession("SuperProxy: $profileName")
-                .setMtu(8500)
-                .addAddress("10.8.0.2", 24)
-                .addDnsServer("1.1.1.1")
+                .setMtu(1500)
+                .addAddress("10.0.0.2", 24)
                 .addDnsServer("8.8.8.8")
+                .addDnsServer("1.1.1.1")
                 .addRoute("0.0.0.0", 0) // Route entire device IPv4 traffic into tun0
 
-            // Per-app proxy routing if user specified allowed apps (Super Proxy style)
+            // 1. App Routing & Loop Prevention:
+            // Never route our own app package into the VPN to prevent infinite loop
             if (allowedApps.isNotEmpty()) {
                 for (pkg in allowedApps) {
-                    try {
-                        builder.addAllowedApplication(pkg)
-                    } catch (_: Exception) {}
+                    if (pkg != packageName) {
+                        try {
+                            builder.addAllowedApplication(pkg)
+                        } catch (_: Exception) {}
+                    }
                 }
+            } else {
+                // By default, route ALL apps on the device, excluding our own app process
+                try {
+                    builder.addDisallowedApplication(packageName)
+                } catch (_: Exception) {}
             }
 
-            // HTTP proxy direct hook on Android 10+ (API 29+)
+            // 2. HTTP proxy direct hook on Android 10+ (API 29+)
             if (protocol.equals("HTTP", ignoreCase = true) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 try {
                     builder.setHttpProxy(android.net.ProxyInfo.buildDirectProxy(server, port))
@@ -93,16 +110,17 @@ class SuperProxyVpnService : VpnService() {
             val pfd = vpnInterface ?: throw IllegalStateException("TUN descriptor invalid")
             val tunFd = pfd.fd
 
-            // Generate YAML configuration required by hev-socks5-tunnel
+            // 3. Generate YAML configuration required by hev-socks5-tunnel
             val configFile = File(cacheDir, "hev-socks5.conf")
-            val authSection = if (user.isNotBlank()) {
+            val authSection = if (user.isNotBlank() && pass.isNotBlank()) {
                 "  username: '$user'\n  password: '$pass'"
             } else ""
 
             val configContent = """
                 tunnel:
-                  mtu: 8500
-                  ipv4: 10.8.0.2
+                  name: tun0
+                  mtu: 1500
+                  ipv4: 10.0.0.2
 
                 socks5:
                   port: $port
@@ -118,7 +136,7 @@ class SuperProxyVpnService : VpnService() {
 
             FileOutputStream(configFile).use { it.write(configContent.toByteArray()) }
 
-            // Launch native tun2socks engine in background IO
+            // 4. Launch native tun2socks engine in background IO
             serviceScope.launch {
                 try {
                     TProxyService.TProxyStartService(configFile.absolutePath, tunFd)
