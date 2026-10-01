@@ -12,21 +12,23 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
+import hev.htproxy.TProxyService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
 
 /**
- * Super Proxy style VpnService that provides real-time proxy routing tunnel
- * with optional per-app routing via Android's native addAllowedApplication API.
+ * Super Proxy style VpnService that provides real system-level SOCKS5/HTTP routing
+ * using Android's native TUN virtual interface and hev-socks5-tunnel native core.
  */
 class SuperProxyVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
+    private var isRunning = false
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
@@ -36,36 +38,42 @@ class SuperProxyVpnService : VpnService() {
         }
 
         val profileName = intent?.getStringExtra(EXTRA_PROFILE_NAME) ?: "Proxy"
-        val server = intent?.getStringExtra(EXTRA_SERVER) ?: "104.244.72.115"
+        val server = intent?.getStringExtra(EXTRA_SERVER) ?: "127.0.0.1"
         val port = intent?.getIntExtra(EXTRA_PORT, 1080) ?: 1080
+        val protocol = intent?.getStringExtra(EXTRA_PROTOCOL) ?: "SOCKS5"
+        val user = intent?.getStringExtra(EXTRA_USER) ?: ""
+        val pass = intent?.getStringExtra(EXTRA_PASS) ?: ""
         val allowedApps = intent?.getStringArrayListExtra(EXTRA_ALLOWED_APPS) ?: arrayListOf<String>()
 
         startForegroundNotification(profileName, server, port)
-        establishVpn(profileName, server, port, allowedApps)
+        startVpn(profileName, server, port, protocol, user, pass, allowedApps)
 
         return START_STICKY
     }
 
-    private fun establishVpn(profileName: String, server: String, port: Int, allowedApps: List<String>) {
-        try {
-            vpnInterface?.close()
+    private fun startVpn(
+        profileName: String,
+        server: String,
+        port: Int,
+        protocol: String,
+        user: String,
+        pass: String,
+        allowedApps: List<String>
+    ) {
+        if (isRunning) {
+            stopVpn()
+        }
 
+        try {
             val builder = Builder()
                 .setSession("SuperProxy: $profileName")
+                .setMtu(8500)
                 .addAddress("10.8.0.2", 24)
-                .addRoute("0.0.0.0", 0)
-                .addDnsServer("8.8.8.8")
                 .addDnsServer("1.1.1.1")
-                .setMtu(1500)
+                .addDnsServer("8.8.8.8")
+                .addRoute("0.0.0.0", 0) // Route entire device IPv4 traffic into tun0
 
-            // Route proxy via system ProxyInfo where supported (API 29+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                try {
-                    builder.setHttpProxy(android.net.ProxyInfo.buildDirectProxy(server, port))
-                } catch (_: Exception) {}
-            }
-
-            // Super Proxy style: Route ONLY the selected apps if specified
+            // Per-app proxy routing if user specified allowed apps (Super Proxy style)
             if (allowedApps.isNotEmpty()) {
                 for (pkg in allowedApps) {
                     try {
@@ -74,29 +82,55 @@ class SuperProxyVpnService : VpnService() {
                 }
             }
 
+            // HTTP proxy direct hook on Android 10+ (API 29+)
+            if (protocol.equals("HTTP", ignoreCase = true) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                try {
+                    builder.setHttpProxy(android.net.ProxyInfo.buildDirectProxy(server, port))
+                } catch (_: Exception) {}
+            }
+
             vpnInterface = builder.establish()
-            startTunnelLoop()
-        } catch (_: Exception) {}
-    }
+            val pfd = vpnInterface ?: throw IllegalStateException("TUN descriptor invalid")
+            val tunFd = pfd.fd
 
-    private var tunnelJob: kotlinx.coroutines.Job? = null
-    private val serviceScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
+            // Generate YAML configuration required by hev-socks5-tunnel
+            val configFile = File(cacheDir, "hev-socks5.conf")
+            val authSection = if (user.isNotBlank()) {
+                "  username: '$user'\n  password: '$pass'"
+            } else ""
 
-    private fun startTunnelLoop() {
-        tunnelJob?.cancel()
-        val pfd = vpnInterface ?: return
-        tunnelJob = serviceScope.launch {
-            try {
-                val inputStream = java.io.FileInputStream(pfd.fileDescriptor)
-                val buffer = java.nio.ByteBuffer.allocate(32767)
-                while (isActive) {
-                    val length = inputStream.read(buffer.array())
-                    if (length <= 0) {
-                        delay(100)
-                    }
-                    buffer.clear()
+            val configContent = """
+                tunnel:
+                  mtu: 8500
+                  ipv4: 10.8.0.2
+
+                socks5:
+                  port: $port
+                  address: '$server'
+                  udp: 'tcp'
+                $authSection
+
+                misc:
+                  task-stack-size: 20480
+                  connect-timeout: 5000
+                  read-write-timeout: 60000
+            """.trimIndent()
+
+            FileOutputStream(configFile).use { it.write(configContent.toByteArray()) }
+
+            // Launch native tun2socks engine in background IO
+            serviceScope.launch {
+                try {
+                    TProxyService.TProxyStartService(configFile.absolutePath, tunFd)
+                } catch (t: Throwable) {
+                    t.printStackTrace()
                 }
-            } catch (_: Exception) {}
+            }
+
+            isRunning = true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            stopVpn()
         }
     }
 
@@ -127,11 +161,22 @@ class SuperProxyVpnService : VpnService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val disconnectIntent = Intent(this, SuperProxyVpnService::class.java).apply {
+            action = ACTION_STOP
+        }
+        val disconnectPending = PendingIntent.getService(
+            this,
+            1,
+            disconnectIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Super Proxy Active: $profileName")
-            .setContentText("Connected to $server:$port • Traffic Routed")
+            .setContentText("Routing device traffic through $server:$port")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Disconnect", disconnectPending)
             .setOngoing(true)
             .build()
 
@@ -149,12 +194,18 @@ class SuperProxyVpnService : VpnService() {
     }
 
     private fun stopVpn() {
-        tunnelJob?.cancel()
-        tunnelJob = null
+        if (!isRunning && vpnInterface == null) return
+        isRunning = false
+
+        try {
+            TProxyService.TProxyStopService()
+        } catch (_: Throwable) {}
+
         try {
             vpnInterface?.close()
             vpnInterface = null
         } catch (_: Exception) {}
+
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -170,15 +221,30 @@ class SuperProxyVpnService : VpnService() {
         const val EXTRA_PROFILE_NAME = "profile_name"
         const val EXTRA_SERVER = "server"
         const val EXTRA_PORT = "port"
+        const val EXTRA_PROTOCOL = "protocol"
+        const val EXTRA_USER = "user"
+        const val EXTRA_PASS = "pass"
         const val EXTRA_ALLOWED_APPS = "allowed_apps"
 
-        fun start(context: Context, profileName: String, server: String, port: Int, allowedApps: List<String>) {
+        fun start(
+            context: Context,
+            profileName: String,
+            server: String,
+            port: Int,
+            protocol: String = "SOCKS5",
+            user: String = "",
+            pass: String = "",
+            allowedApps: List<String> = emptyList()
+        ) {
             try {
                 val intent = Intent(context, SuperProxyVpnService::class.java).apply {
                     action = ACTION_START
                     putExtra(EXTRA_PROFILE_NAME, profileName)
                     putExtra(EXTRA_SERVER, server)
                     putExtra(EXTRA_PORT, port)
+                    putExtra(EXTRA_PROTOCOL, protocol)
+                    putExtra(EXTRA_USER, user)
+                    putExtra(EXTRA_PASS, pass)
                     putStringArrayListExtra(EXTRA_ALLOWED_APPS, ArrayList(allowedApps))
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

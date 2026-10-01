@@ -941,72 +941,94 @@ object OverlayStateManager {
             return
         }
 
-        // Instant 1-click connection!
+        // Show connecting / handshake validation status in UI
         _uiState.update {
             it.copy(
                 proxyState = it.proxyState.copy(
-                    isConnected = true,
-                    isTesting = false,
-                    connectedDurationSeconds = 0,
-                    statusText = "Connected to ${proxy.host}:${proxy.port}"
+                    isTesting = true,
+                    statusText = "Validating ${proxy.host}:${proxy.port}..."
                 )
             )
         }
 
-        // Start live duration timer
-        proxyDurationJob?.cancel()
-        proxyDurationJob = scope.launch {
-            while (isActive) {
-                delay(1000)
-                _uiState.update {
-                    it.copy(
-                        proxyState = it.proxyState.copy(
-                            connectedDurationSeconds = it.proxyState.connectedDurationSeconds + 1
-                        )
-                    )
-                }
-            }
-        }
-
-        context?.let { ctx ->
-            VibrationHelper.vibrateSuccess(ctx)
-            SuperProxyVpnService.start(
-                ctx,
-                proxy.profileName,
-                proxy.host,
-                proxy.port,
-                proxy.allowedApps
+        scope.launch(Dispatchers.IO) {
+            val result = ProxyTester.testProxy(
+                host = proxy.host,
+                port = proxy.port,
+                protocol = proxy.protocol,
+                username = proxy.username,
+                password = proxy.password,
+                timeoutMs = 3500,
+                pingOptimized = true
             )
-            Toast.makeText(ctx, "Super Proxy Connected! (${proxy.host}:${proxy.port})", Toast.LENGTH_SHORT).show()
-        }
 
-        // Asynchronously resolve external IP and Country in background
-        scope.launch {
-            try {
-                val result = ProxyTester.testProxy(
-                    host = proxy.host,
-                    port = proxy.port,
-                    protocol = proxy.protocol,
-                    username = proxy.username,
-                    password = proxy.password,
-                    pingOptimized = true
-                )
-                if (result.isSuccess && _uiState.value.proxyState.isConnected) {
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                if (result.isSuccess) {
                     val effectiveIp = result.resolvedIp ?: proxy.host
                     val country = result.countryCode ?: proxy.countryCode
                     val latency = if (result.latencyMs > 0) result.latencyMs else 45L
+
                     _uiState.update {
                         it.copy(
                             proxyState = it.proxyState.copy(
+                                isConnected = true,
+                                isTesting = false,
+                                connectedDurationSeconds = 0,
                                 ipAddress = effectiveIp,
                                 countryCode = country,
                                 pingMs = latency,
-                                statusText = "Connected ($effectiveIp • ${latency}ms)"
+                                statusText = "Connected to $effectiveIp • ${latency}ms"
                             )
                         )
                     }
+
+                    // Start live duration timer
+                    proxyDurationJob?.cancel()
+                    proxyDurationJob = scope.launch {
+                        while (isActive) {
+                            delay(1000)
+                            _uiState.update {
+                                it.copy(
+                                    proxyState = it.proxyState.copy(
+                                        connectedDurationSeconds = it.proxyState.connectedDurationSeconds + 1
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    context?.let { ctx ->
+                        VibrationHelper.vibrateSuccess(ctx)
+                        SuperProxyVpnService.start(
+                            context = ctx,
+                            profileName = proxy.profileName,
+                            server = proxy.host,
+                            port = proxy.port,
+                            protocol = proxy.protocol,
+                            user = proxy.username,
+                            pass = proxy.password,
+                            allowedApps = proxy.allowedApps
+                        )
+                        Toast.makeText(ctx, "✅ Super Proxy Connected! ($effectiveIp • ${latency}ms)", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    // Revert switch and display exact error message
+                    val errorMsg = result.errorMessage ?: "Proxy connection failed"
+                    _uiState.update {
+                        it.copy(
+                            proxyState = it.proxyState.copy(
+                                isConnected = false,
+                                isTesting = false,
+                                statusText = "Error: $errorMsg"
+                            )
+                        )
+                    }
+                    context?.let { ctx ->
+                        VibrationHelper.vibrateTactileClick(ctx)
+                        Toast.makeText(ctx, "❌ Handshake Failed: $errorMsg", Toast.LENGTH_LONG).show()
+                    }
                 }
-            } catch (_: Exception) {}
+            }
         }
     }
 
