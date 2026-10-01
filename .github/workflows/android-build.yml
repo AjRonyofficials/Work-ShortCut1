@@ -55,26 +55,45 @@ jobs:
           test -f debug.keystore
           echo "debug.keystore is ready ($(wc -c < debug.keystore) bytes)"
 
+      - name: Verify and Auto-Repair Critical Resource Configurations
+        run: |
+          mkdir -p app/src/main/res/xml
+          if [ ! -f "app/src/main/res/xml/accessibility_service_config.xml" ]; then
+            echo "Auto-repairing missing accessibility_service_config.xml..."
+            cat << 'EOF' > app/src/main/res/xml/accessibility_service_config.xml
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="100" />
+EOF
+          fi
+          test -f app/src/main/res/xml/accessibility_service_config.xml
+          echo "accessibility_service_config.xml verified."
+
       - name: Ensure Gradle Wrapper and Executable Permissions
         run: |
-          if [ ! -f "gradlew" ]; then
-            echo "gradlew not found in repository root. Auto-generating Gradle wrapper with Gradle 9.3.1..."
-            gradle wrapper --gradle-version 9.3.1 || gradle wrapper || true
+          if [ ! -f "gradlew" ] || [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "Generating Gradle wrapper with Gradle 9.3.1..."
+            gradle wrapper --gradle-version 9.3.1 || true
           fi
           if [ -f "gradlew" ]; then
             chmod +x gradlew
             echo "gradlew found and marked executable."
           else
-            echo "gradlew not present, will fallback directly to system gradle."
+            echo "gradlew not present, will use installed Gradle 9.3.1 CLI directly."
           fi
 
       - name: Build Debug APK
         run: |
-          if [ -x "./gradlew" ]; then
+          if [ -f "./gradlew" ] && [ -f "gradle/wrapper/gradle-wrapper.jar" ]; then
             echo "Building with ./gradlew (Gradle 9.3.1)..."
-            ./gradlew assembleDebug --no-daemon --stacktrace
+            ./gradlew assembleDebug --no-daemon --stacktrace || gradle assembleDebug --no-daemon --stacktrace
           else
-            echo "Building with gradle CLI (Gradle 9.3.1)..."
+            echo "Building directly with gradle CLI (Gradle 9.3.1)..."
             gradle assembleDebug --no-daemon --stacktrace
           fi
 
