@@ -1,5 +1,6 @@
 package com.example.util
 
+import com.example.service.SuperProxyVpnService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -20,14 +21,19 @@ object ProxyTester {
         val latencyMs: Long,
         val resolvedIp: String? = null,
         val countryCode: String? = null,
+        val countryName: String? = null,
+        val city: String? = null,
+        val isp: String? = null,
+        val timezone: String? = null,
         val errorMessage: String? = null
     )
 
     /**
-     * Real-time proxy test like Super Proxy:
-     * 1. Sets authentication if username/password provided.
-     * 2. Tests socket connectivity to host:port.
-     * 3. Attempts real HTTP request through the proxy to fetch actual egress IP & Country.
+     * Real-Time IP & Geo-Location Detection (Super Proxy Style):
+     * 1. Protects the test socket so it bypasses VPN loop if VPN is running.
+     * 2. Tests TCP socket handshake to verify proxy server is listening.
+     * 3. Sends real request through proxy to an IP geo API (ip-api.com / ipwho.is)
+     *    to extract the actual public egress IP, Country, City, and ISP.
      */
     suspend fun testProxy(
         host: String,
@@ -50,7 +56,7 @@ object ProxyTester {
             )
         }
 
-        // Set authenticator if credentials present
+        // Set global authenticator if credentials present
         if (username.isNotBlank()) {
             Authenticator.setDefault(object : Authenticator() {
                 override fun getPasswordAuthentication(): PasswordAuthentication {
@@ -59,12 +65,13 @@ object ProxyTester {
             })
         }
 
-        // Step 1: Direct socket connection test to verify proxy server is listening
+        // Step 1: Direct socket connection test to verify proxy server is alive
         var socket: Socket? = null
         try {
             socket = Socket()
             socket.tcpNoDelay = true
             socket.soTimeout = effectiveTimeout
+            SuperProxyVpnService.protectSocket(socket)
             val socketAddress = InetSocketAddress(cleanHost, port)
             socket.connect(socketAddress, effectiveTimeout)
         } catch (e: Exception) {
@@ -80,7 +87,7 @@ object ProxyTester {
 
         val socketLatency = System.currentTimeMillis() - startTime
 
-        // Step 2: Test real traffic routing through proxy to resolve public IP & Country
+        // Step 2: Test real traffic routing through proxy to resolve public IP, City, Country, ISP
         val proxyType = if (protocol.equals("HTTP", ignoreCase = true) || protocol.equals("HTTPS", ignoreCase = true)) {
             Proxy.Type.HTTP
         } else {
@@ -91,15 +98,21 @@ object ProxyTester {
 
         var resolvedIp = cleanHost
         var resolvedCountry = "US"
+        var resolvedCountryName = "United States"
+        var resolvedCity = ""
+        var resolvedIsp = ""
+        var resolvedTimezone = ""
 
+        var geoSuccess = false
+
+        // Attempt 1: ip-api.com through the proxy
         try {
-            // Use lightweight IP check service through the proxy
-            val checkUrl = URL("http://ip-api.com/json/?fields=query,countryCode,status")
+            val checkUrl = URL("http://ip-api.com/json/?fields=query,status,country,countryCode,city,isp,timezone")
             val conn = checkUrl.openConnection(javaProxy) as HttpURLConnection
             conn.connectTimeout = effectiveTimeout
             conn.readTimeout = effectiveTimeout
             conn.requestMethod = "GET"
-            conn.setRequestProperty("User-Agent", "SuperProxy/1.0")
+            conn.setRequestProperty("User-Agent", "SuperProxy/2.0")
 
             if (conn.responseCode == 200) {
                 val reader = BufferedReader(InputStreamReader(conn.inputStream))
@@ -110,31 +123,53 @@ object ProxyTester {
                 if (json.optString("status") == "success") {
                     resolvedIp = json.optString("query", cleanHost)
                     resolvedCountry = json.optString("countryCode", "US")
+                    resolvedCountryName = json.optString("country", "United States")
+                    resolvedCity = json.optString("city", "")
+                    resolvedIsp = json.optString("isp", "")
+                    resolvedTimezone = json.optString("timezone", "")
+                    geoSuccess = true
                 }
             }
             conn.disconnect()
-        } catch (_: Exception) {
-            // Fallback to ipify if ip-api fails
+        } catch (_: Exception) {}
+
+        // Attempt 2: ipwho.is fallback through the proxy
+        if (!geoSuccess) {
             try {
-                val ipifyUrl = URL("https://api.ipify.org")
-                val conn = ipifyUrl.openConnection(javaProxy) as HttpURLConnection
-                conn.connectTimeout = 2500
-                conn.readTimeout = 2500
+                val ipwhoUrl = URL("http://ipwho.is/")
+                val conn = ipwhoUrl.openConnection(javaProxy) as HttpURLConnection
+                conn.connectTimeout = 3000
+                conn.readTimeout = 3000
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("User-Agent", "SuperProxy/2.0")
+
                 if (conn.responseCode == 200) {
                     val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                    resolvedIp = reader.readText().trim()
+                    val response = reader.readText()
                     reader.close()
+
+                    val json = JSONObject(response)
+                    if (json.optBoolean("success", false)) {
+                        resolvedIp = json.optString("ip", cleanHost)
+                        resolvedCountry = json.optString("country_code", "US")
+                        resolvedCountryName = json.optString("country", "United States")
+                        resolvedCity = json.optString("city", "")
+                        val connObj = json.optJSONObject("connection")
+                        resolvedIsp = connObj?.optString("isp", "") ?: ""
+                        val timeObj = json.optJSONObject("timezone")
+                        resolvedTimezone = timeObj?.optString("id", "") ?: ""
+                        geoSuccess = true
+                    }
                 }
                 conn.disconnect()
-            } catch (_: Exception) {
-                // If outbound check through proxy is blocked, socket was already proven valid
-            }
+            } catch (_: Exception) {}
         }
 
-        // If country could not be resolved through the tunnel, resolve proxy server host IP country directly
-        if (resolvedCountry == "US" && cleanHost != "127.0.0.1" && cleanHost != "localhost") {
+        // Attempt 3: If outbound request through tunnel was blocked or private proxy,
+        // resolve geo details of the proxy host directly
+        if (!geoSuccess && cleanHost != "127.0.0.1" && cleanHost != "localhost") {
             try {
-                val directCheckUrl = URL("http://ip-api.com/json/$cleanHost?fields=query,countryCode,status")
+                val directCheckUrl = URL("http://ip-api.com/json/$cleanHost?fields=query,status,country,countryCode,city,isp,timezone")
                 val directConn = directCheckUrl.openConnection() as HttpURLConnection
                 directConn.connectTimeout = 2000
                 directConn.readTimeout = 2000
@@ -146,6 +181,10 @@ object ProxyTester {
                     val json = JSONObject(response)
                     if (json.optString("status") == "success") {
                         resolvedCountry = json.optString("countryCode", resolvedCountry)
+                        resolvedCountryName = json.optString("country", resolvedCountryName)
+                        resolvedCity = json.optString("city", resolvedCity)
+                        resolvedIsp = json.optString("isp", resolvedIsp)
+                        resolvedTimezone = json.optString("timezone", resolvedTimezone)
                         if (resolvedIp == cleanHost) {
                             resolvedIp = json.optString("query", cleanHost)
                         }
@@ -162,7 +201,11 @@ object ProxyTester {
             isSuccess = true,
             latencyMs = finalLatency,
             resolvedIp = resolvedIp,
-            countryCode = resolvedCountry
+            countryCode = resolvedCountry,
+            countryName = resolvedCountryName,
+            city = resolvedCity,
+            isp = resolvedIsp,
+            timezone = resolvedTimezone
         )
     }
 }

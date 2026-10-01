@@ -62,6 +62,9 @@ data class ProxyConnectionState(
     val password: String = "",
     val ipAddress: String = "104.244.72.115",
     val countryCode: String = "BD",
+    val countryName: String = "Bangladesh",
+    val city: String = "",
+    val isp: String = "",
     val pingMs: Long = 42,
     val statusText: String = "Disconnected",
     val connectedDurationSeconds: Long = 0,
@@ -966,6 +969,9 @@ object OverlayStateManager {
                 if (result.isSuccess) {
                     val effectiveIp = result.resolvedIp ?: proxy.host
                     val country = result.countryCode ?: proxy.countryCode
+                    val countryName = result.countryName ?: "United States"
+                    val city = result.city ?: ""
+                    val isp = result.isp ?: ""
                     val latency = if (result.latencyMs > 0) result.latencyMs else 45L
 
                     _uiState.update {
@@ -976,6 +982,9 @@ object OverlayStateManager {
                                 connectedDurationSeconds = 0,
                                 ipAddress = effectiveIp,
                                 countryCode = country,
+                                countryName = countryName,
+                                city = city,
+                                isp = isp,
                                 pingMs = latency,
                                 statusText = "Connected to $effectiveIp • ${latency}ms"
                             )
@@ -1009,7 +1018,8 @@ object OverlayStateManager {
                             pass = proxy.password,
                             allowedApps = proxy.allowedApps
                         )
-                        Toast.makeText(ctx, "✅ Super Proxy Connected! ($effectiveIp • ${latency}ms)", Toast.LENGTH_SHORT).show()
+                        val locLabel = if (city.isNotEmpty()) "$city, $country" else country
+                        Toast.makeText(ctx, "✅ Super Proxy Connected! ($locLabel • ${latency}ms)", Toast.LENGTH_SHORT).show()
                     }
                 } else {
                     // Revert switch and display exact error message
@@ -1030,6 +1040,49 @@ object OverlayStateManager {
                 }
             }
         }
+    }
+
+    /**
+     * 1-Click / Auto Proxy Formatter & Importer:
+     * Parses standard raw strings (host:port:user:pass, socks5://..., etc.)
+     * and saves into the SQLite/Room database.
+     */
+    fun importAndSaveProxy(rawInput: String, context: Context? = null): Boolean {
+        val parsed = com.example.util.ProxyFormatHelper.parse(rawInput) ?: return false
+
+        updateSuperProxyProfile(
+            profileName = parsed.suggestedName,
+            server = parsed.host,
+            port = parsed.port,
+            protocol = parsed.protocol,
+            countryCode = parsed.countryCode,
+            username = parsed.username,
+            password = parsed.password
+        )
+
+        scope.launch {
+            try {
+                repository?.insertProxy(
+                    com.example.data.local.model.ProxyProfileEntity(
+                        name = parsed.suggestedName,
+                        protocol = parsed.protocol,
+                        host = parsed.host,
+                        port = parsed.port,
+                        username = parsed.username,
+                        password = parsed.password,
+                        countryCode = parsed.countryCode,
+                        isActive = false,
+                        lastPingMs = -1,
+                        lastConnectedTime = System.currentTimeMillis()
+                    )
+                )
+            } catch (_: Exception) {}
+        }
+
+        context?.let {
+            Toast.makeText(it, "⚡ Proxy Imported: ${parsed.host}:${parsed.port}", Toast.LENGTH_SHORT).show()
+        }
+        return true
     }
 
     fun testProxyOnly(context: Context? = null, onComplete: ((Boolean, String) -> Unit)? = null) {
@@ -1061,6 +1114,9 @@ object OverlayStateManager {
                         isTesting = false,
                         ipAddress = if (result.isSuccess) (result.resolvedIp ?: proxy.host) else proxy.ipAddress,
                         countryCode = if (result.isSuccess) (result.countryCode ?: proxy.countryCode) else proxy.countryCode,
+                        countryName = if (result.isSuccess) (result.countryName ?: proxy.countryName) else proxy.countryName,
+                        city = if (result.isSuccess) (result.city ?: "") else proxy.city,
+                        isp = if (result.isSuccess) (result.isp ?: "") else proxy.isp,
                         pingMs = if (result.isSuccess) result.latencyMs else -1L,
                         statusText = if (result.isSuccess) "Test Succeeded (${result.latencyMs}ms)" else "Test Failed: ${result.errorMessage}"
                     )

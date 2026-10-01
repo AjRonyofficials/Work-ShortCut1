@@ -19,17 +19,19 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import java.net.DatagramSocket
+import java.net.Socket
 
 /**
  * Super Proxy style VpnService that provides real system-level SOCKS5/HTTP routing
  * using Android's native TUN virtual interface and hev-socks5-tunnel native core.
  *
- * Fixes:
- * 1. Safe MTU set to 1500 to prevent packet fragmentation.
+ * Core Guarantees:
+ * 1. Safe MTU set to 1500 to prevent packet drops and fragmentation.
  * 2. DNS servers explicitly configured (8.8.8.8, 1.1.1.1) and routed through TUN.
  * 3. UDP mapped to TCP (udp: 'tcp') in hev-socks5-tunnel config for robust DNS resolution.
- * 4. Infinite loop prevention via addDisallowedApplication(packageName), ensuring the
- *    proxy engine's own outbound connection is never routed back into the tunnel.
+ * 4. Infinite loop prevention via addDisallowedApplication(packageName) and protectSocket(),
+ *    ensuring the proxy engine's own outbound connection is never routed back into the tunnel.
  * 5. Universal app routing: when no specific apps are filtered, all apps (Chrome, etc.)
  *    are routed through the tunnel by default.
  */
@@ -39,7 +41,13 @@ class SuperProxyVpnService : VpnService() {
     private var isRunning = false
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    override fun onCreate() {
+        super.onCreate()
+        activeInstance = this
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        activeInstance = this
         val action = intent?.action
         if (action == ACTION_STOP) {
             stopVpn()
@@ -229,6 +237,9 @@ class SuperProxyVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        if (activeInstance === this) {
+            activeInstance = null
+        }
         super.onDestroy()
         stopVpn()
     }
@@ -243,6 +254,36 @@ class SuperProxyVpnService : VpnService() {
         const val EXTRA_USER = "user"
         const val EXTRA_PASS = "pass"
         const val EXTRA_ALLOWED_APPS = "allowed_apps"
+
+        @Volatile
+        private var activeInstance: SuperProxyVpnService? = null
+
+        fun protectSocket(socket: Socket?): Boolean {
+            if (socket == null) return false
+            return try {
+                activeInstance?.protect(socket) ?: false
+            } catch (_: Throwable) {
+                false
+            }
+        }
+
+        fun protectSocket(socket: DatagramSocket?): Boolean {
+            if (socket == null) return false
+            return try {
+                activeInstance?.protect(socket) ?: false
+            } catch (_: Throwable) {
+                false
+            }
+        }
+
+        fun protectSocket(socketFd: Int): Boolean {
+            if (socketFd <= 0) return false
+            return try {
+                activeInstance?.protect(socketFd) ?: false
+            } catch (_: Throwable) {
+                false
+            }
+        }
 
         fun start(
             context: Context,

@@ -31,11 +31,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
@@ -51,6 +55,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -60,6 +65,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,7 +91,9 @@ import com.example.service.OverlayUiState
 import com.example.ui.theme.AlertRed
 import com.example.ui.theme.BrandBlue
 import com.example.ui.theme.BrandGreen
+import com.example.util.ClipboardHelper
 import com.example.util.NameGenerator
+import com.example.util.ProxyFormatHelper
 import kotlinx.coroutines.launch
 
 @Composable
@@ -107,6 +115,7 @@ fun ProxySection(
     var username by remember(proxy.username) { mutableStateOf(proxy.username) }
     var password by remember(proxy.password) { mutableStateOf(proxy.password) }
     var passwordVisible by remember { mutableStateOf(false) }
+    var quickPasteInput by remember { mutableStateOf("") }
 
     var testStatusText by remember { mutableStateOf<String?>(null) }
     var isTestingActive by remember { mutableStateOf(false) }
@@ -265,40 +274,78 @@ fun ProxySection(
                         }
                     }
 
-                    // Live Metrics when connected (IP, Country, Time, Latency)
+                    // Live Metrics when connected (Real External IP, City, Country, ISP, Time, Latency)
                     if (proxy.isConnected) {
                         Spacer(modifier = Modifier.height(14.dp))
                         val opt = NameGenerator.getCountryOption(proxy.countryCode)
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, BrandGreen.copy(alpha = 0.35f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceAround,
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("IP & COUNTRY", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("${opt.flag} ${opt.code} • ${proxy.ipAddress}", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(opt.flag, fontSize = 22.sp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            val locText = if (proxy.city.isNotBlank()) "${proxy.city}, ${proxy.countryName}" else proxy.countryName
+                                            Text(
+                                                text = locText,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = if (proxy.isp.isNotBlank()) "ISP: ${proxy.isp}" else "Protocol: ${proxy.protocol} • Real Egress",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = if (proxy.pingMs in 1..150) BrandGreen.copy(alpha = 0.18f) else Color(0xFFFFB300).copy(alpha = 0.18f)
+                                    ) {
+                                        Text(
+                                            text = "${proxy.pingMs}ms",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (proxy.pingMs in 1..150) BrandGreen else Color(0xFFFFB300),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
                                 }
 
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("LIVE TIME", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(
-                                        OverlayStateManager.formatDuration(proxy.connectedDurationSeconds),
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = BrandGreen
-                                    )
-                                }
+                                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("LATENCY", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("${proxy.pingMs}ms", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("REAL PUBLIC IP", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(proxy.ipAddress, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = BrandBlue)
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text("LIVE ACTIVE TIME", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(
+                                            OverlayStateManager.formatDuration(proxy.connectedDurationSeconds),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = BrandGreen
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -356,6 +403,117 @@ fun ProxySection(
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    // 1-Click / Auto Proxy Formatter & Quick Importer Box
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandBlue.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "1-Click Proxy Auto-Formatter",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = BrandBlue
+                                    )
+                                }
+
+                                TextButton(
+                                    onClick = {
+                                        val clipText = ClipboardHelper.getFromClipboard(context)
+                                        if (!clipText.isNullOrBlank()) {
+                                            quickPasteInput = clipText.trim()
+                                            val parsed = ProxyFormatHelper.parse(quickPasteInput)
+                                            if (parsed != null) {
+                                                serverHost = parsed.host
+                                                serverPort = parsed.port.toString()
+                                                protocol = parsed.protocol
+                                                username = parsed.username
+                                                password = parsed.password
+                                                countryCode = parsed.countryCode
+                                                profileName = parsed.suggestedName
+                                                testStatusText = null
+                                                OverlayStateManager.importAndSaveProxy(quickPasteInput, context)
+                                            } else {
+                                                Toast.makeText(context, "Could not auto-detect format. Enter manually.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Clipboard is empty!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Paste Clipboard", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Paste any format: host:port:user:pass • user:pass@host:port • socks5://...",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = quickPasteInput,
+                                    onValueChange = { quickPasteInput = it },
+                                    placeholder = { Text("host:port:user:pass", fontSize = 12.sp) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("proxy_quick_paste_input"),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+
+                                Button(
+                                    onClick = {
+                                        if (quickPasteInput.isNotBlank()) {
+                                            val parsed = ProxyFormatHelper.parse(quickPasteInput)
+                                            if (parsed != null) {
+                                                serverHost = parsed.host
+                                                serverPort = parsed.port.toString()
+                                                protocol = parsed.protocol
+                                                username = parsed.username
+                                                password = parsed.password
+                                                countryCode = parsed.countryCode
+                                                profileName = parsed.suggestedName
+                                                testStatusText = null
+                                                OverlayStateManager.importAndSaveProxy(quickPasteInput, context)
+                                            } else {
+                                                Toast.makeText(context, "Unrecognized format. Please check input.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Please enter a proxy string to import", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+                                ) {
+                                    Text("Import", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // Protocol Selection Tabs (SOCKS5 / HTTP)
                     Text(
@@ -851,17 +1009,34 @@ fun ProxySection(
                             )
                             val allowedCount = proxy.allowedApps.size
                             Text(
-                                text = if (allowedCount == 0) "All apps routed through proxy (Default)" else "$allowedCount apps exclusively routed through proxy",
+                                text = if (allowedCount == 0) "🛡️ All apps routed through proxy (Default: Chrome, browser, system)" else "$allowedCount apps exclusively routed through proxy",
                                 fontSize = 12.sp,
                                 color = if (allowedCount > 0) BrandGreen else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
-                        Button(
-                            onClick = { isAppSelectionExpanded = !isAppSelectionExpanded },
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(if (isAppSelectionExpanded) "Done" else "Select Apps", fontSize = 12.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (proxy.allowedApps.isNotEmpty()) {
+                                OutlinedButton(
+                                    onClick = {
+                                        OverlayStateManager.setProxyAllowedApps(emptyList())
+                                        Toast.makeText(context, "Reset to route All Apps by default", Toast.LENGTH_SHORT).show()
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("All Apps", fontSize = 11.sp)
+                                }
+                            }
+
+                            Button(
+                                onClick = { isAppSelectionExpanded = !isAppSelectionExpanded },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(if (isAppSelectionExpanded) "Done" else "Filter Apps", fontSize = 12.sp)
+                            }
                         }
                     }
 
