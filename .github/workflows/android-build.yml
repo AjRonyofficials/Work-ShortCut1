@@ -83,42 +83,43 @@ jobs:
           ls -la app/build/outputs/apk/debug/
           find app/build/outputs/apk/ -name "*.apk"
 
+      - name: Prepare APK Release Assets
+        run: |
+          mkdir -p release-assets
+          cp app/build/outputs/apk/debug/app-debug.apk release-assets/WorkShortCut-latest.apk
+          cp app/build/outputs/apk/debug/app-debug.apk "release-assets/WorkShortCut-v1.0.${{ github.run_number }}.apk"
+          echo "Release assets prepared:"
+          ls -la release-assets/
+
       - name: Upload APK as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: WorkShortCut-Debug-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: release-assets/*.apk
           retention-days: 30
 
-      - name: Auto Deploy Release on Main
-        if: github.ref == 'refs/heads/main'
+      - name: Auto Deploy GitHub Release
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/debug/*.apk
-          tag_name: latest
-          name: Work ShortCut (Latest Auto-Build)
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          name: Work ShortCut ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          files: release-assets/*.apk
+          draft: false
+          prerelease: false
+          make_latest: true
           body: |
-            ## 🚀 Work ShortCut - Automated Deployment
-            
-            This release was automatically built and deployed from the `main` branch.
-            
-            - **Commit**: `${{ github.sha }}`
-            
-            ### 📥 Download APK:
-            Download **`app-debug.apk`** below to install directly on your Android device.
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            ## 🚀 Work ShortCut - Automated Deployment Build
 
-      - name: Create Tagged Release and Upload APK
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: app/build/outputs/apk/debug/*.apk
-          name: Work ShortCut ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+            This release was automatically built, signed, and deployed by GitHub Actions.
+
+            - **Application**: Work ShortCut
+            - **Build Number**: `${{ github.run_number }}`
+            - **Commit**: `${{ github.sha }}`
+            - **Triggered By**: `${{ github.event_name }}` (${{ github.actor }})
+
+            ### 📥 Direct APK Downloads:
+            - **`WorkShortCut-latest.apk`**: Always contains the latest build.
+            - **`WorkShortCut-v1.0.${{ github.run_number }}.apk`**: Version-tagged build for archiving.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
