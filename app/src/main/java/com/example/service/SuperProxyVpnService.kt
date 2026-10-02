@@ -82,13 +82,23 @@ class SuperProxyVpnService : VpnService() {
         }
 
         try {
+            // 1. Resolve server hostname to IP address BEFORE establishing VPN!
+            // If server is "gw.dataimpulse.com", resolving it now uses physical network.
+            val resolvedServerIp = try {
+                java.net.InetAddress.getByName(server.trim()).hostAddress ?: server.trim()
+            } catch (_: Exception) {
+                server.trim()
+            }
+
             val builder = Builder()
                 .setSession("SuperProxy: $profileName")
                 .setMtu(1500)
                 .addAddress("10.0.0.2", 24)
-                .addRoute("0.0.0.0", 0) // Route entire device IPv4 traffic into tun0
-                .addDnsServer("1.1.1.1")
+                .addDnsServer("10.0.0.2") // Primary DNS handled locally by mapdns on tun0
+                .addDnsServer("1.1.1.1")   // Backup DNS
                 .addDnsServer("8.8.8.8")
+                .addRoute("240.0.0.0", 4) // Synthetic mapped DNS network
+                .addRoute("0.0.0.0", 0)   // Route entire device IPv4 traffic into tun0
 
             // 1. App Routing & Loop Prevention:
             // Never route our own app package into the VPN to prevent infinite loop
@@ -110,7 +120,7 @@ class SuperProxyVpnService : VpnService() {
             // 2. HTTP proxy direct hook on Android 10+ (API 29+)
             if (protocol.equals("HTTP", ignoreCase = true) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 try {
-                    builder.setHttpProxy(android.net.ProxyInfo.buildDirectProxy(server, port))
+                    builder.setHttpProxy(android.net.ProxyInfo.buildDirectProxy(resolvedServerIp, port))
                 } catch (_: Exception) {}
             }
 
@@ -121,9 +131,9 @@ class SuperProxyVpnService : VpnService() {
             // 3. Generate YAML configuration required by hev-socks5-tunnel
             val configFile = File(cacheDir, "hev-socks5.conf")
             val authSection = if (user.isNotBlank() && pass.isNotBlank()) {
-                val safeUser = user.replace("\"", "\\\"")
-                val safePass = pass.replace("\"", "\\\"")
-                "  username: \"$safeUser\"\n  password: \"$safePass\""
+                val safeUser = user.replace("'", "''")
+                val safePass = pass.replace("'", "''")
+                "  username: '$safeUser'\n  password: '$safePass'"
             } else ""
 
             val configContent = """
@@ -134,14 +144,23 @@ class SuperProxyVpnService : VpnService() {
 
                 socks5:
                   port: $port
-                  address: '$server'
+                  address: '$resolvedServerIp'
                   udp: 'tcp'
                 $authSection
 
+                mapdns:
+                  address: 10.0.0.2
+                  port: 53
+                  network: 240.0.0.0
+                  netmask: 240.0.0.0
+                  cache-size: 2048
+
                 misc:
                   task-stack-size: 20480
-                  connect-timeout: 5000
-                  read-write-timeout: 60000
+                  connect-timeout: 10000
+                  tcp-read-write-timeout: 60000
+                  udp-read-write-timeout: 30000
+                  limit-nofile: 65535
             """.trimIndent()
 
             FileOutputStream(configFile).use { it.write(configContent.toByteArray()) }

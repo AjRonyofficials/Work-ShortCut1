@@ -9,6 +9,7 @@ import android.net.VpnService
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,6 +37,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Public
@@ -48,6 +51,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -64,6 +68,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -114,6 +119,9 @@ fun ProxySection(
     var countryCode by remember(proxy.countryCode) { mutableStateOf(proxy.countryCode) }
     var username by remember(proxy.username) { mutableStateOf(proxy.username) }
     var password by remember(proxy.password) { mutableStateOf(proxy.password) }
+    var requiresAuth by remember(proxy.username, proxy.password) {
+        mutableStateOf(proxy.username.isNotBlank() || proxy.password.isNotBlank())
+    }
     var passwordVisible by remember { mutableStateOf(false) }
     var quickPasteInput by remember { mutableStateOf("") }
 
@@ -153,14 +161,16 @@ fun ProxySection(
 
     val triggerStartOrStop = {
         val portInt = serverPort.toIntOrNull() ?: 1080
+        val effectiveUser = if (requiresAuth) username else ""
+        val effectivePass = if (requiresAuth) password else ""
         OverlayStateManager.updateSuperProxyProfile(
             profileName = profileName,
             server = serverHost,
             port = portInt,
             protocol = protocol,
             countryCode = countryCode,
-            username = username,
-            password = password
+            username = effectiveUser,
+            password = effectivePass
         )
 
         if (proxy.isConnected) {
@@ -493,6 +503,7 @@ fun ProxySection(
                                                 protocol = parsed.protocol
                                                 username = parsed.username
                                                 password = parsed.password
+                                                requiresAuth = parsed.username.isNotBlank() || parsed.password.isNotBlank()
                                                 countryCode = parsed.countryCode
                                                 profileName = parsed.suggestedName
                                                 testStatusText = null
@@ -616,50 +627,140 @@ fun ProxySection(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    // 4. Username & 5. Password
-                    Row(
+                    // 4. Authentication Section (Dedicated Super Proxy / RootProxy style)
+                    Card(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = username,
-                            onValueChange = {
-                                username = it
-                                testStatusText = null
-                            },
-                            label = { Text("Username (Optional)") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("input_proxy_user")
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (requiresAuth) Color(0xFF26A69A).copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                         )
-
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = {
-                                password = it
-                                testStatusText = null
-                            },
-                            label = { Text("Password (Optional)") },
-                            singleLine = true,
-                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            trailingIcon = {
-                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF26A69A).copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
-                                        imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        imageVector = Icons.Default.VpnKey,
                                         contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
+                                        tint = Color(0xFF26A69A),
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("input_proxy_pass")
-                        )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Authentication",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Requires authentication",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Username and password protection",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = requiresAuth,
+                                    onCheckedChange = { isChecked ->
+                                        requiresAuth = isChecked
+                                        if (!isChecked) {
+                                            username = ""
+                                            password = ""
+                                        }
+                                    }
+                                )
+                            }
+
+                            AnimatedVisibility(visible = requiresAuth) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = username,
+                                        onValueChange = {
+                                            username = it
+                                            testStatusText = null
+                                            val crMatch = Regex("""(?:cr\.([a-z]{2})|country[_-]([a-z]{2}))""", RegexOption.IGNORE_CASE).find(it)
+                                            if (crMatch != null) {
+                                                val cc = crMatch.groupValues.firstOrNull { g -> g.length == 2 && !g.equals("cr", ignoreCase = true) }?.uppercase()
+                                                if (!cc.isNullOrBlank()) {
+                                                    countryCode = cc
+                                                }
+                                            }
+                                        },
+                                        label = { Text("Username") },
+                                        placeholder = { Text("e.g. defa891ce67dcbeaddcb__cr.it") },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("input_proxy_user")
+                                    )
+
+                                    OutlinedTextField(
+                                        value = password,
+                                        onValueChange = {
+                                            password = it
+                                            testStatusText = null
+                                        },
+                                        label = { Text("Password") },
+                                        placeholder = { Text("Enter proxy password") },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        },
+                                        singleLine = true,
+                                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                        trailingIcon = {
+                                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                                Icon(
+                                                    imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("input_proxy_pass")
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -674,6 +775,8 @@ fun ProxySection(
                             onClick = {
                                 val portInt = serverPort.toIntOrNull() ?: 1080
                                 val cleanName = profileName.ifBlank { "Profile ${savedProxies.size + 1}" }
+                                val effectiveUser = if (requiresAuth) username else ""
+                                val effectivePass = if (requiresAuth) password else ""
                                 scope.launch {
                                     val existing = savedProxies.firstOrNull { it.name.trim().equals(cleanName.trim(), ignoreCase = true) }
                                     val entity = ProxyProfileEntity(
@@ -682,8 +785,8 @@ fun ProxySection(
                                         protocol = protocol,
                                         host = serverHost.ifBlank { "127.0.0.1" },
                                         port = portInt,
-                                        username = username,
-                                        password = password,
+                                        username = effectiveUser,
+                                        password = effectivePass,
                                         countryCode = countryCode.ifBlank { "US" },
                                         isActive = true
                                     )
@@ -754,20 +857,23 @@ fun ProxySection(
                         OutlinedButton(
                             onClick = {
                                 val portInt = serverPort.toIntOrNull() ?: 1080
+                                val effectiveUser = if (requiresAuth) username else ""
+                                val effectivePass = if (requiresAuth) password else ""
                                 OverlayStateManager.updateSuperProxyProfile(
                                     profileName = profileName,
                                     server = serverHost,
                                     port = portInt,
                                     protocol = protocol,
                                     countryCode = countryCode,
-                                    username = username,
-                                    password = password
+                                    username = effectiveUser,
+                                    password = effectivePass
                                 )
                                 isTestingActive = true
                                 testStatusText = "Testing connection..."
                                 OverlayStateManager.testProxyOnly(context) { success, msg ->
                                     isTestingActive = false
                                     testStatusText = msg
+                                    countryCode = OverlayStateManager.uiState.value.proxyState.countryCode
                                 }
                             },
                             modifier = Modifier

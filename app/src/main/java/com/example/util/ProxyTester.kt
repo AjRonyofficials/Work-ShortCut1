@@ -111,8 +111,8 @@ object ProxyTester {
             try {
                 val url = URL(endpoint)
                 val conn = url.openConnection(javaProxy) as HttpURLConnection
-                conn.connectTimeout = 3500
-                conn.readTimeout = 3500
+                conn.connectTimeout = 8500
+                conn.readTimeout = 8500
                 conn.requestMethod = "GET"
                 conn.setRequestProperty("User-Agent", "curl/7.88.1")
 

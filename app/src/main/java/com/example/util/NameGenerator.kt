@@ -53,6 +53,7 @@ object NameGenerator {
         CountryOption("BR", "Brazil", "🇧🇷"),
         CountryOption("BG", "Bulgaria", "🇧🇬"),
         CountryOption("KH", "Cambodia", "🇰🇭"),
+        CountryOption("CM", "Cameroon", "🇨🇲"),
         CountryOption("CA", "Canada", "🇨🇦"),
         CountryOption("CL", "Chile", "🇨🇱"),
         CountryOption("CN", "China", "🇨🇳"),
@@ -279,10 +280,35 @@ object NameGenerator {
         return "$firstName $lastName"
     }
 
+    fun countryCodeToEmojiFlag(countryCode: String): String {
+        val upper = countryCode.trim().uppercase()
+        if (upper.length == 2 && upper[0] in 'A'..'Z' && upper[1] in 'A'..'Z') {
+            val first = Character.codePointAt(upper, 0) - 0x41 + 0x1F1E6
+            val second = Character.codePointAt(upper, 1) - 0x41 + 0x1F1E6
+            return String(Character.toChars(first)) + String(Character.toChars(second))
+        }
+        return "🌐"
+    }
+
     fun getCountryOption(countryCode: String): CountryOption {
-        return allCountries.firstOrNull { it.code.equals(countryCode, ignoreCase = true) }
-            ?: commonCountries.firstOrNull { it.code.equals(countryCode, ignoreCase = true) }
-            ?: CountryOption("BD", "Bangladesh", "🇧🇩")
+        val upper = countryCode.trim().uppercase()
+        if (upper.isEmpty()) return CountryOption("US", "United States", "🇺🇸")
+
+        val match = allCountries.firstOrNull { it.code.equals(upper, ignoreCase = true) }
+            ?: commonCountries.firstOrNull { it.code.equals(upper, ignoreCase = true) }
+        if (match != null) return match
+
+        if (upper.length == 2 && upper[0] in 'A'..'Z' && upper[1] in 'A'..'Z') {
+            val flag = countryCodeToEmojiFlag(upper)
+            val name = try {
+                java.util.Locale("", upper).displayCountry.ifBlank { upper }
+            } catch (_: Exception) {
+                upper
+            }
+            return CountryOption(upper, name, flag)
+        }
+
+        return CountryOption(upper, upper, "🌐")
     }
 
     private data class CountryNames(

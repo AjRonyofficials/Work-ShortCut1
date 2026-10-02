@@ -61,8 +61,8 @@ data class ProxyConnectionState(
     val username: String = "",
     val password: String = "",
     val ipAddress: String = "104.244.72.115",
-    val countryCode: String = "BD",
-    val countryName: String = "Bangladesh",
+    val countryCode: String = "US",
+    val countryName: String = "United States",
     val city: String = "",
     val isp: String = "",
     val pingMs: Long = 42,
@@ -157,7 +157,7 @@ object OverlayStateManager {
             val proxyHost = p.getString("proxy_host", "127.0.0.1") ?: "127.0.0.1"
             val proxyPort = p.getInt("proxy_port", 1080)
             val proxyProtocol = p.getString("proxy_protocol", "SOCKS5") ?: "SOCKS5"
-            val proxyCountry = p.getString("proxy_country", "BD") ?: "BD"
+            val proxyCountry = p.getString("proxy_country", "US") ?: "US"
 
             val initialDraft = ExcelDraftRow(
                 values = (0 until colCount).associate { ('A' + it).toString() to "" }
@@ -852,10 +852,25 @@ object OverlayStateManager {
         server: String,
         port: Int,
         protocol: String = "SOCKS5",
-        countryCode: String = "BD",
+        countryCode: String = "",
         username: String = "",
         password: String = ""
     ) {
+        val crMatch = Regex("""(?:cr\.([a-z]{2})|country[_-]([a-z]{2}))""", RegexOption.IGNORE_CASE).find(username)
+        val extractedCountry = crMatch?.groupValues?.firstOrNull { it.length == 2 && !it.equals("cr", ignoreCase = true) }?.uppercase()
+
+        val effectiveCountry = if (countryCode.isNotBlank() && countryCode != "BD") {
+            countryCode.uppercase()
+        } else if (!extractedCountry.isNullOrBlank()) {
+            extractedCountry
+        } else if (_uiState.value.proxyState.countryCode.isNotBlank() && _uiState.value.proxyState.countryCode != "BD") {
+            _uiState.value.proxyState.countryCode
+        } else {
+            "US"
+        }
+
+        val countryOpt = com.example.util.NameGenerator.getCountryOption(effectiveCountry)
+
         _uiState.update {
             it.copy(
                 proxyState = it.proxyState.copy(
@@ -864,7 +879,8 @@ object OverlayStateManager {
                     port = port,
                     ipAddress = server,
                     protocol = protocol,
-                    countryCode = countryCode.uppercase(),
+                    countryCode = effectiveCountry,
+                    countryName = countryOpt.name,
                     username = username,
                     password = password
                 )
@@ -875,7 +891,7 @@ object OverlayStateManager {
             ?.putString("proxy_host", server)
             ?.putInt("proxy_port", port)
             ?.putString("proxy_protocol", protocol)
-            ?.putString("proxy_country", countryCode.uppercase())
+            ?.putString("proxy_country", effectiveCountry)
             ?.putString("proxy_username", username)
             ?.putString("proxy_password", password)
             ?.apply()
@@ -961,8 +977,8 @@ object OverlayStateManager {
                 protocol = proxy.protocol,
                 username = proxy.username,
                 password = proxy.password,
-                timeoutMs = 3500,
-                pingOptimized = true
+                timeoutMs = 12000,
+                pingOptimized = false
             )
 
             kotlinx.coroutines.withContext(Dispatchers.Main) {
@@ -1108,19 +1124,30 @@ object OverlayStateManager {
                 pingOptimized = false
             )
 
+            val effectiveCountry = if (result.isSuccess && !result.countryCode.isNullOrBlank()) {
+                result.countryCode.uppercase()
+            } else {
+                proxy.countryCode
+            }
+            val countryOpt = com.example.util.NameGenerator.getCountryOption(effectiveCountry)
+
             _uiState.update {
                 it.copy(
                     proxyState = it.proxyState.copy(
                         isTesting = false,
                         ipAddress = if (result.isSuccess) (result.resolvedIp ?: proxy.host) else proxy.ipAddress,
-                        countryCode = if (result.isSuccess) (result.countryCode ?: proxy.countryCode) else proxy.countryCode,
-                        countryName = if (result.isSuccess) (result.countryName ?: proxy.countryName) else proxy.countryName,
+                        countryCode = effectiveCountry,
+                        countryName = if (result.isSuccess && !result.countryName.isNullOrBlank()) result.countryName else countryOpt.name,
                         city = if (result.isSuccess) (result.city ?: "") else proxy.city,
                         isp = if (result.isSuccess) (result.isp ?: "") else proxy.isp,
                         pingMs = if (result.isSuccess) result.latencyMs else -1L,
                         statusText = if (result.isSuccess) "Test Succeeded (${result.latencyMs}ms)" else "Test Failed: ${result.errorMessage}"
                     )
                 )
+            }
+
+            if (result.isSuccess && !result.countryCode.isNullOrBlank()) {
+                prefs?.edit()?.putString("proxy_country", effectiveCountry)?.apply()
             }
 
             context?.let { ctx ->
